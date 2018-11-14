@@ -1,0 +1,313 @@
+### Smart Seq wrokflow
+Data from L. Li et all. A workflow to explore this dataset
+
+```{r}
+## Libraries
+library(Seurat)
+library(monocle)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(plotly)
+library(genefilter)
+library(gplots)
+
+outputDir  = getwd()
+
+```
+
+### Late and Meiotic cells
+* Redo seurat workflow with Late and meiotic
+
+```{r}
+FGC <- readRDS("FGC.rds") 
+lateMeiot <- SubsetData(object = FGC, ident.use = c(2, 4)) ## clusters 2 and 4 are late and miotic cells
+lateMeiot
+lateDir <- paste0(outputDir, "/late")
+```
+
+```{r}
+lateMeiot <- NormalizeData(object = lateMeiot, 
+                     normalization.method = "LogNormalize", 
+                     scale.factor = 1000000)
+```
+
+```{r}
+lateMeiot <- FindVariableGenes(object = lateMeiot, 
+                         mean.function = ExpMean, 
+                         dispersion.function = LogVMR,
+                         x.low.cutoff = 0.0125, 
+                         x.high.cutoff = 8, 
+                         y.cutoff = 1)
+length(x = lateMeiot@var.genes)
+topAveExpr = lateMeiot@hvg.info[lateMeiot@hvg.info[,1]>3, ]
+topAveExprPath = paste0(lateDir, "/topAveExpr.tsv")
+write.table(x = topAveExpr, file = topAveExprPath, sep = "\t")
+```
+
+```{r}
+## Scaling the data
+lateMeiot <- ScaleData(object = lateMeiot)
+```
+
+```{r}
+lateMeiot <- RunPCA(object = lateMeiot, 
+                    pc.genes = lateMeiot@var.genes, 
+                    do.print = TRUE, 
+                    pcs.print = 1:5, 
+                    genes.print = 10)
+```
+
+```{r}
+VizPCA(object = lateMeiot, pcs.use = 1:2)
+ggsave(paste0(lateDir, "vizPCA.pdf"), width = 10, height = 7)
+PCAPlot(object = lateMeiot, dim.1 = 1, dim.2 = 2)
+lateMeiot <- ProjectPCA(object = lateMeiot, do.print = FALSE)
+write.table(lateMeiot@dr$pca@gene.loadings, 
+            file = paste0(lateDir, "/geneLoadings.tsv"), 
+            sep = "\t", 
+            quote = FALSE)
+```
+
+```{r}
+PCHeatmap(object = lateMeiot, 
+          pc.use = 1, 
+          cells.use = 100, 
+          do.balanced = TRUE, 
+          label.columns = FALSE)
+```
+
+```{r}
+PCHeatmap(object = lateMeiot, 
+          pc.use = 1:12, 
+          cells.use = 100, 
+          do.balanced = TRUE, 
+          label.columns = FALSE, 
+          use.full = FALSE)
+```
+
+```{r}
+PCElbowPlot(object = lateMeiot)
+## Print the percenatge of the standard deviation of each PC as a 
+## fraction of the total standard deviation od the first 20 PCs
+totalSdev <- sum(lateMeiot@dr$pca@sdev)
+print(lateMeiot@dr$pca@sdev/totalSdev)
+```
+
+```{r}
+lateMeiot <- FindClusters(object = lateMeiot, 
+                          reduction.type = "pca", 
+                          dims.use = 1:10, 
+                          resolution = 0.6, 
+                          print.output = 0, 
+                          save.SNN = TRUE, 
+                          force.recalc = TRUE)
+```
+
+```{r}
+lateMeiot <- RunTSNE(object = lateMeiot, 
+                     dims.use = 1:10, 
+                     do.fast = TRUE)
+lateMeiot <- RunUMAP(lateMeiot, 
+                     dims.use = 1:10,
+                     reduction.use = "pca")
+```
+
+```{r}
+p <- TSNEPlot(object = lateMeiot, 
+              do.return = TRUE)
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(lateDir, "/tSNE.pdf"), width = 10, height = 7)
+p <- DimPlot(lateMeiot, 
+             reduction.use = "umap", 
+             do.return = TRUE)
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(lateDir, "/UMAP.pdf"), width = 10, height = 7)
+p <- PCAPlot(object = lateMeiot, 
+             dim.1 = 1, 
+             dim.2 = 2, 
+             do.return = TRUE) 
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(lateDir, "/PCA.pdf"), width = 10, height = 7)
+```
+
+```{r}
+lateMeiot.markers <- FindAllMarkers(object = lateMeiot, only.pos = TRUE, min.pct = 0.25)
+lateMeiot.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
+```
+
+```{r}
+topMarkers <- lateMeiot.markers %>% 
+                        group_by(cluster) %>% 
+                        top_n(-30, p_val_adj)
+topMarkersPath = paste0(lateDir, "/topMarkerGenes.tsv")
+write.table(x = topMarkers, file = topMarkersPath, sep = "\t", quote = FALSE, row.names = FALSE)
+
+## Write lateMeiot object to rds
+lateMeiotRds = paste0(lateDir, "/lateMeiot.rds")
+saveRDS(lateMeiot, file =  lateMeiotRds)
+```
+
+```{r}
+markerGenes <- c("POU5F1", "PDPN", "NANOS3",
+                 "DDX4", "DAZL", "STRA8",
+                 "SPO11", "SYCP3", "TEX19",
+                 "ZP3", "KIT")
+FeaturePlot(object = lateMeiot, 
+            features.plot = markerGenes, 
+            cols.use = c("grey", "blue"),
+            reduction.use = "tsne")
+```
+
+```{r}
+library(topGO)
+library(org.Hs.eg.db)
+## Code from Davy Cats
+
+GOdir <- paste0(lateDir,"/GOanalysis/")
+dir.create(GOdir, showWarnings = FALSE)
+
+# Initialize list for storing the results in.
+lst <- list()
+
+# Loop through the clusters.
+for (x in unique(lateMeiot.markers$cluster)){
+  print(x)
+  
+  # Make a names list of adjusted p-values, with their names being the
+  # associated gene.
+  genes <- lateMeiot.markers[lateMeiot.markers$cluster == x, "p_val_adj"]
+  names(genes) <- lateMeiot.markers[lateMeiot.markers$cluster == x, "gene"]
+  
+  # Create a topGOdata object, containing the genes, a function for selecting
+  # genes of interest and GO annotations.
+  GOdata <- new("topGOdata",
+                description = "test",
+                ontology = "BP",
+                allGenes = genes,
+                geneSel = function(scores) {return(scores< 0.01)},
+                annot = annFUN.org,
+                mapping = "org.Hs.eg.db",
+                ID = "symbol",
+                nodeSize = 10)
+  
+  # Perform Kolmogorov-Smirnov test, using three different GO graph handling
+  # algorithms.
+  resultKS.classic <- runTest(GOdata, algorithm = "classic", statistic = "ks")
+  resultKS <- runTest(GOdata, algorithm = "weight01", statistic = "ks")
+  resultKS.elim <- runTest(GOdata, algorithm = "elim", statistic = "ks")
+  
+  # Make a table from the results, ordered by the p-values of the classic
+  # algorithm.
+  tbl <- as.data.frame(GenTable(GOdata, ks=resultKS, ks.elim=resultKS.elim,
+                                ks.classic=resultKS.classic,
+                                topNodes=20, orderBy="ks.classic", numChar = 180))
+  
+  # Add the results table to the results list.
+  lst[[x]] <- tbl
+  
+  ## Write results table to file
+  write.table(tbl, file = paste0(GOdir, "cluster_", x, ".tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+}
+
+## Write all groups GO output to a single table 
+GO <- data.frame()
+for (name in names(lst)) {
+  df <- lst[[name]]
+  df <- cbind(groupID = name, df)
+  GO <- rbind(GO, df)
+}
+write.table(GO, file = paste0(lateDir, "/GOAnalysis.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+### Color according to paper IDs
+
+```{r}
+## Load cell labels
+cellLabels <- read.delim("/path/to/mmc2_finalClusters.csv")
+cellL <- unique(cellLabels$Name_cl)
+cellL
+cellLabelsFemale <- cellL[grep(cellL, pattern = "Female")] 
+names(cellLabelsFemale) <- cellLabelsFemale
+listCellIDs <- lapply(cellLabelsFemale, function(label){
+    as.character(cellLabels[ cellLabels$Name_cl ==  label, 1])
+} )
+names(listCellIDs) <- cellLabelsFemale
+```
+
+```{r}
+p <- TSNEPlot(object = lateMeiot, 
+              cells.highlight = listCellIDs, 
+              colors.use = c("black"), 
+              cols.highlight = c("#7FC97F", "#BEAED4", "#FDC086", "#FFFF99",
+                                 "#386CB0", "#F0027F", "#BF5B17", "#666666"), 
+              do.return = TRUE)
+ggplotly(p, width = 700, height = 600)
+ggsave(paste0(lateDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
+```
+
+### Color by embryo age
+
+```{r}
+## Highlight cells in tSNE plot
+list <- (strsplit( colnames(lateMeiot@data), split = "_"))
+weeks <- sapply(list, function(el){el[2]} )
+lateMeiot@meta.data$embryo.age <- weeks
+p <- TSNEPlot(object = lateMeiot,
+              group.by = "embryo.age",
+              do.return = TRUE)
+ggplotly(p, width = 700, height = 600)
+ggsave(paste0(outputDir, "/tSNEembryoAge.pdf"), width = 10, height = 7)
+```
+
+```{r}
+groupIdentity <- lateMeiot@ident
+normCounts <- lateMeiot@data
+
+## Substiture cell ID with cluster ID
+colnames(normCounts) <- groupIdentity
+
+## Calculate median 
+medianDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, median))
+   colnames(df) <- id
+   return(df)
+ }))
+ write.table(medianDF, paste0(lateDir, "/perClusterMedian.tsv"), sep = "\t", quote = FALSE)
+ 
+## Calculate geometric mean
+gm_mean = function(x, na.rm=TRUE){
+   exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+geomMeanDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, gm_mean))
+   colnames(df) <- id
+   return(df)
+}))
+write.table(geomMeanDF, paste0(lateDir, "/perClusterGeomMean.tsv"), sep = "\t", quote = FALSE)
+ 
+## Calculate Mean
+meanDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, mean))
+   colnames(df) <- id
+   return(df)
+}))
+write.table(meanDF, paste0(lateDir, "/perClusterMean.tsv"), sep = "\t", quote = FALSE)
+```
+
+```{r}
+distance <- dist(t(meanDF))
+hc <- hclust(distance)
+plot(hc)
+
+rv <- rowVars(meanDF)
+idx <- order(-rv)[1:50]
+e <- as.matrix(meanDF)
+heatmap.2(e[idx, ], trace = "none")
+pdf(file = paste0(lateDir, "/heatmapMeans.pdf"))
+heatmap.2(e[idx, ], trace = "none")
+dev.off()
+```
