@@ -1,0 +1,467 @@
+---
+title: "Seurat workflow on LiLi female cells smart-seq data"
+output:
+  html_document:
+    keep_md: true
+    smart: false
+    theme: united
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+***
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  cache.lazy = FALSE,
+  tidy = TRUE
+)
+```
+
+### Smart Seq wrokflow
+Data from L. Li et all. A workflow to explore this dataset
+
+```{r, message=FALSE}
+## Libraries
+suppressMessages(library(Seurat))
+suppressMessages(library(monocle))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+suppressMessages(library(dplyr))
+suppressMessages(library(plotly))
+suppressMessages(library(genefilter))
+suppressMessages(library(gplots))
+
+outputDir  = getwd()
+
+#### $$$$ ####
+## Load female cells only
+path = "/path/to/data/"
+exprTableFiles = list.files(path=path, pattern="^GSM.*_F")
+```
+
+* Read the data from the files
+* Keep only female cells 
+
+```{r, message=FALSE}
+mergedExprTable <- read.delim(paste0(path, exprTableFiles[1]))
+
+exprTableF <- exprTableFiles[2:length(exprTableFiles)]
+for (file in exprTableF){ 
+  exprTable <- read.delim(paste0(path, file))
+  mergedExprTable <- merge(mergedExprTable, exprTable, by="Gene")
+}
+
+mergedExprTable <- as.data.frame(mergedExprTable)
+## There are still a few male cells in there. Filter them out (only keep cells starting with F)
+rownames(mergedExprTable) <- mergedExprTable$Gene
+mergedExprTable <- mergedExprTable[, grep("^F", colnames(mergedExprTable)) ]
+```
+
+### Read the metadata table
+* Per cell info on: aligned reads, maping ratio, number of expresed genes, number of transcripts 
+* Keep only the female cells
+
+```{r, message=FALSE}
+## Read the metadata table
+metaData <- read.table("/path/to/metadata.tsv", sep = "\t", header = TRUE, row.names = "Cell")
+metaDataFemale <- metaData[grep("^F", rownames(metaData)), ]
+```
+
+* Remove week14 female cells. They cluster strange downstream
+
+```{r, message=FALSE}
+metaDataFemale <- metaDataFemale[grep("_14W_", rownames(metaDataFemale), invert = TRUE), ]
+```
+
+## QC
+
+```{r, message=FALSE}
+p1 <- ggplot(metaDataFemale, aes(x=1, y=Gene_Numer)) + 
+      geom_violin(aes(color="red"), show.legend = FALSE) + 
+      geom_jitter(height = 0, width = 0.4)
+p2 <- ggplot(metaDataFemale, aes(x=1, y=Transcripts)) + 
+      geom_violin(aes(color="red"), show.legend = FALSE) + 
+      geom_jitter(height = 0, width = 0.4)
+grid.arrange(p1, p2, ncol=2)
+```
+
+* Filter cells based on Transcript count and gene number
+* Minimum and maximum number of transcripts and genes as filters
+
+```{r, message=FALSE}
+cellIndex <- metaDataFemale$Transcripts>100000 & 
+             metaDataFemale$Transcripts<1500000 &
+             metaDataFemale$Gene_Numer>2000 &
+             metaDataFemale$Gene_Numer<10000
+p <- ggplot(metaDataFemale, aes(x=Transcripts, y=Gene_Numer)) 
+p <- p + geom_point(data=metaDataFemale[!cellIndex,])
+p + geom_point(data=metaDataFemale[cellIndex,], colour="red")
+cellIDsAfterQC <- row.names(metaDataFemale)[cellIndex]
+cellIDsExludedQC <- row.names(metaDataFemale)[!cellIndex]
+```
+
+* From the count table, olny keep cells that passed the QC
+
+```{r, message=FALSE}
+## Check if the filtered cells exist in the dataset
+sprintf("Number of cells in the metadata: %s", nrow(metaDataFemale))
+sprintf("Number of cells that pass the QC: %s", length(cellIDsAfterQC))
+sprintf("Number of cells in the count table (before QC): %s", ncol(mergedExprTable))
+
+## Keep only the cells of interest
+exprTableAfterQC <- mergedExprTable[,colnames(mergedExprTable) %in% cellIDsAfterQC]
+sprintf("Number of cells in the count table (After QC): %s", ncol(exprTableAfterQC))
+```
+
+### Reverse the TPM calculation
+* Use the per cell total transcripts from the metadata table
+* For each cell, multiply the normalized counts by the total number of transcripts for that cell. Then divide by 1000000 
+* Check if the resulting table has values that are very close to integers. The smaller non zero must be 1
+
+```{r, message=FALSE}
+## Go back to raw counts using the number of Trancripts info from metadata
+transcripts <- t(metaDataFemale[-c(1:4)])
+#names(trancripts) <- rownames(metaDataFemale )
+transcripts <- transcripts[,colnames(exprTableAfterQC)] 
+transcriptByMil <- transcripts/1000000
+exprTableRaw <- data.frame(mapply(`*`,exprTableAfterQC, as.vector(transcriptByMil)))
+row.names(exprTableRaw) <- rownames(exprTableAfterQC)
+exprTableRaw <- round(exprTableRaw)
+```
+
+### Create Seurat Object and start with clustering analysis
+
+```{r, message=FALSE}
+## Seurat Object, Normalization
+## Max trancriptome size is above 1000000, scale factor to 1000000
+FGC <- CreateSeuratObject(raw.data = exprTableRaw,
+                          min.cells = 5)
+FGC <- NormalizeData(object = FGC, 
+                     normalization.method = "LogNormalize", 
+                     scale.factor = 1000000)
+```
+
+## Dissociation genes on normalized data
+* No need to remove cells, dissociation genes bellow 6%
+
+```{r, message=FALSE}
+genesChrom <- c("Actg1__chr11","Ankrd1__chr19","Arid5a__chr1","Atf3__chr1","Atf4__chr15","Bag3__chr7","Bhlhe40__chr6",
+"Brd2__chr17","Btg1__chr10","Btg2__chr1","Ccnl1__chr3","Ccrn4l__chr3","Cebpb__chr2","Cebpd__chr16",
+"Cebpg__chr7","Csrnp1__chr9","Cxcl1__chr5","Cyr61__chr3","Dcn__chr10","Ddx3x__chrX","Ddx5__chr11",
+"Des__chr1","Dnaja1__chr4","Dnajb1__chr8","Dnajb4__chr3","Dusp1__chr17","Dusp8__chr7",
+"Egr1__chr18","Egr2__chr10","Eif1__chr11","Eif5__chr12","Erf__chr7","Errfi1__chr4","Fam132b__chr1",
+"Fos__chr12","Fosb__chr7","Fosl2__chr5","Gadd45a__chr6","Gcc1__chr6","Gem__chr4","H3f3b__chr11",
+"Hipk3__chr2","Hsp90aa1__chr12","Hsp90ab1__chr17","Hspa1a__chr17","Hspa1b__chr17","Hspa5__chr2",
+"Hspa8__chr9","Hspb1__chr5","Hsph1__chr5","Id3__chr4","Idi1__chr13","Ier2__chr8","Ier3__chr17",
+"Ifrd1__chr12","Il6__chr5","Irf1__chr11","Irf8__chr8","Itpkc__chr7","Jun__chr4","Junb__chr8",
+"Jund__chr8","Klf2__chr8","Klf4__chr4","Klf6__chr13","Klf9__chr19","Litaf__chr16","Lmna__chr3",
+"Maff__chr15","Mafk__chr5","Mcl1__chr3","Midn__chr10","Mir22hg__chr11","Mt1__chr8","Mt2__chr8",
+"Myadm__chr7","Myc__chr15","Myd88__chr9","Nckap5l__chr15","Ncoa7__chr10","Nfkbia__chr12","Nfkbiz__chr16",
+"Nop58__chr1","Nppc__chr1","Nr4a1__chr15","Odc1__chr12","Osgin1__chr8","Oxnad1__chr14","Pcf11__chr7",
+"Pde4b__chr4","Per1__chr11","Phlda1__chr10","Pnp__chr14","Pnrc1__chr4","Ppp1cc__chr5","Ppp1r15a__chr7",
+"Pxdc1__chr13","Rap1b__chr10","Rassf1__chr9","Rhob__chr12","Rhoh__chr5","Ripk1__chr13","Sat1__chrX",
+"Sbno2__chr10","Sdc4__chr2","Serpine1__chr5","Skil__chr3","Slc10a6__chr5","Slc38a2__chr15",
+"Slc41a1__chr1","Socs3__chr11","Sqstm1__chr11","Srf__chr17","Srsf5__chr12","Srsf7__chr17",
+"Stat3__chr11","Tagln2__chr1","Tiparp__chr3","Tnfaip3__chr10","Tnfaip6__chr2","Tpm3__chr3",
+"Tppp3__chr8","Tra2a__chr6","Tra2b__chr16","Trib1__chr15","Tubb4b__chr2","Tubb6__chr18",
+"Ubc__chr5","Usp2__chr9","Wac__chr18","Zc3h12a__chr4","Zfand5__chr19","Zfp36__chr7","Zfp36l1__chr12",
+"Zfp36l2__chr17","Zyx__chr6","Gadd45g__chr13","Hspe1__chr1","Ier5__chr1","Kcne4__chr1")
+
+genes <- sapply(genesChrom, function(x){
+  toupper( strsplit(x, "__")[[1]][1])
+})
+
+Data <- as.data.frame(as.matrix(FGC@data))
+cat("All genes:\n")
+print(unname(genes))
+write.table(genes, paste0(outputDir, "/mouseDissocGenes.tsv"), sep ="\t", quote=FALSE, row.names = FALSE)
+
+## Remove mouse only genes and put the corresponding human
+genes <- genes[!genes %in% c("CCRN4L", "MT1", "MT2")]
+genes <- c(genes, "NOCT", "MT1A", "MT2A")
+cat("Genes from mouse we miss in human:\n")
+unname(genes[!genes %in% row.names(Data)])
+
+## Calculate the percentage of UMIs maping on dissociation genes
+totalSum <- Matrix::colSums(FGC@data)
+selection <- Data[genes, ]
+selection[is.na(selection)] <- 0
+dissociationSums <- colSums(selection)  
+countSums <- merge(totalSum, dissociationSums, by="row.names", all=TRUE, sort= FALSE)
+rownames(countSums) <- countSums$Row.names
+countSums <- countSums[-1]
+colnames(countSums) <- c("totalCount", "dissociationCounts")
+countSums$percentage <- countSums$dissociationCounts/countSums$totalCount
+## Save in meta.data of object
+FGC@meta.data$percent.dissoc <- countSums$percentage
+
+## Draw histogram for all samples
+percentages <- FGC@meta.data$percent.dissoc
+hist(percentages, 
+     breaks = 100, 
+     col = "lightgrey", 
+     main = paste("Expression dissociation-affected genes"), 
+xlab = "Ratio of dissociation-affected genes to total gene count", ylab = "Number of cells", xlim = c(0, 0.20))
+```
+
+```{r, message=FALSE}
+FGC <- FindVariableGenes(object = FGC, 
+                         mean.function = ExpMean, 
+                         dispersion.function = LogVMR,
+                         x.low.cutoff = 0.0125, 
+                         x.high.cutoff = 8, 
+                         y.cutoff = 1)
+length(x = FGC@var.genes)
+topAveExpr = FGC@hvg.info[FGC@hvg.info[,1]>3, ]
+topAveExprPath = paste0(outputDir, "/topAveExpr.tsv")
+write.table(x = topAveExpr, file = topAveExprPath, sep = "\t")
+```
+
+```{r, message=FALSE}
+## Scaling the data
+FGC <- ScaleData(object = FGC)
+```
+
+```{r, message=FALSE}
+FGC <- RunPCA(object = FGC, pc.genes = FGC@var.genes, do.print = TRUE, pcs.print = 1:5, 
+    genes.print = 5)
+```
+
+```{r, message=FALSE}
+VizPCA(object = FGC, pcs.use = 1:2)
+ggsave(paste0(outputDir, "vizPCA.pdf"), width = 10, height = 7)
+PCAPlot(object = FGC, dim.1 = 1, dim.2 = 2)
+FGC <- ProjectPCA(object = FGC, do.print = FALSE)
+write.table(FGC@dr$pca@gene.loadings, file = paste0(outputDir, "/geneLoadings.tsv"), sep = "\t", quote = FALSE)
+```
+
+```{r, message=FALSE}
+PCHeatmap(object = FGC, pc.use = 1, cells.use = 500, do.balanced = TRUE, label.columns = FALSE)
+```
+
+```{r, message=FALSE}
+PCHeatmap(object = FGC, pc.use = 1:12, cells.use = 500, do.balanced = TRUE, 
+    label.columns = FALSE, use.full = FALSE)
+```
+
+```{r, message=FALSE}
+#JackStrawPlot(object = FGC, PCs = 1:12)
+```
+
+```{r, message=FALSE}
+PCElbowPlot(object = FGC)
+## Print the percenatge of the standard deviation of each PC as a 
+## fraction of the total standard deviation od the first 20 PCs
+totalSdev <- sum(FGC@dr$pca@sdev)
+print(FGC@dr$pca@sdev/totalSdev)
+```
+
+```{r, message=FALSE}
+FGC <- FindClusters(object = FGC, reduction.type = "pca", dims.use = 1:13, 
+    resolution = 0.6, print.output = 0, save.SNN = TRUE, force.recalc = TRUE)
+```
+
+```{r, message=FALSE}
+FGC <- RunTSNE(object = FGC, dims.use = 1:13, do.fast = TRUE)
+FGC <- RunUMAP(FGC, reduction.use = "pca", dims.use = 1:13)
+```
+
+```{r, message=FALSE}
+p <- TSNEPlot(object = FGC, do.return = TRUE)
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(outputDir, "/tSNE.pdf"), width = 10, height = 7)
+p <- DimPlot(FGC, reduction.use = "umap", do.return = TRUE)
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(outputDir, "/UMAP.pdf"), width = 10, height = 7)
+p <- PCAPlot(object = FGC, dim.1 = 1, dim.2 = 2, do.return = TRUE) 
+ggplotly(p, width = 700, height = 500)
+ggsave(paste0(outputDir, "/PCA.pdf"), width = 10, height = 7)
+
+```
+
+```{r, message=FALSE}
+FGC.markers <- FindAllMarkers(object = FGC, only.pos = TRUE, min.pct = 0.25)
+FGC.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
+```
+
+```{r, message=FALSE}
+topMarkers <- FGC.markers %>% 
+                        group_by(cluster) %>% 
+                        top_n(-30, p_val_adj)
+topMarkersPath = paste0(outputDir, "/topMarkerGenes.tsv")
+write.table(x = topMarkers, file = topMarkersPath, sep = "\t", quote = FALSE, row.names = FALSE)
+
+## Write FGC object to rds
+FGCRds = paste0(outputDir, "/FGC.rds")
+saveRDS(FGC, file =  FGCRds)
+```
+
+```{r, message=FALSE}
+markerGenes <- c("POU5F1", "PDPN", "NANOS3",
+                 "DDX4", "DAZL", "STRA8",
+                 "SPO11", "SYCP3", "TEX19",
+                 "ZP3", "KIT")
+FeaturePlot(object = FGC, 
+            features.plot = markerGenes, 
+            cols.use = c("grey", "blue"), 
+            reduction.use = "tsne")
+```
+
+### GO terms enrichment analysis
+```{r, message=FALSE}
+library(topGO)
+library(org.Hs.eg.db)
+## Code from Davy Cats
+
+GOdir <- paste0(outputDir,"/GOanalysis/")
+dir.create(GOdir, showWarnings = FALSE)
+
+# Initialize list for storing the results in.
+lst <- list()
+
+# Loop through the clusters.
+for (x in unique(FGC.markers$cluster)){
+  print(x)
+  
+  # Make a names list of adjusted p-values, with their names being the
+  # associated gene.
+  genes <- FGC.markers[FGC.markers$cluster == x, "p_val_adj"]
+  names(genes) <- FGC.markers[FGC.markers$cluster == x, "gene"]
+  
+  # Create a topGOdata object, containing the genes, a function for selecting
+  # genes of interest and GO annotations.
+  GOdata <- new("topGOdata",
+                description="test",
+                ontology="BP",
+                allGenes=genes,
+                geneSel=function(scores) {return(scores< 0.01)},
+                annot=annFUN.org,
+                mapping="org.Hs.eg.db",
+                ID="symbol",
+                nodeSize=10)
+  
+  # Perform Kolmogorov-Smirnov test, using three different GO graph handling
+  # algorithms.
+  resultKS.classic <- runTest(GOdata, algorithm = "classic", statistic = "ks")
+  resultKS <- runTest(GOdata, algorithm = "weight01", statistic = "ks")
+  resultKS.elim <- runTest(GOdata, algorithm = "elim", statistic = "ks")
+  
+  # Make a table from the results, ordered by the p-values of the classic
+  # algorithm.
+  tbl <- as.data.frame(GenTable(GOdata, ks=resultKS, ks.elim=resultKS.elim,
+                                ks.classic=resultKS.classic,
+                                topNodes=20, orderBy="ks.classic", numChar = 180))
+  
+  # Add the results table to the results list.
+  lst[[x]] <- tbl
+  
+  ## Write results table to file
+  write.table(tbl, file = paste0(GOdir, "cluster_", x, ".tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+}
+
+## Write all groups GO output to a single table 
+GO <- data.frame()
+for (name in names(lst)) {
+  df <- lst[[name]]
+  df <- cbind(groupID = name, df)
+  GO <- rbind(GO, df)
+}
+write.table(GO, file = paste0(outputDir, "/GOAnalysis.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+### Color according to paper IDs
+```{r, message=FALSE}
+## Load cell labels
+cellLabels <- read.delim("/path/to/mmc2_finalClusters.csv")
+cellL <- unique(cellLabels$Name_cl)
+cellL
+cellLabelsFemale <- cellL[grep(cellL, pattern = "Female")] 
+names(cellLabelsFemale) <- cellLabelsFemale
+listCellIDs <- lapply(cellLabelsFemale, function(label){
+    as.character(cellLabels[ cellLabels$Name_cl ==  label, 1])
+} )
+names(listCellIDs) <- cellLabelsFemale
+```
+
+```{r, message=FALSE}
+p <- TSNEPlot(object = FGC, 
+              cells.highlight = listCellIDs, 
+              colors.use = c("black"), 
+              cols.highlight = c("#7FC97F", "#BEAED4", "#FDC086", "#FFFF99",
+                                 "#386CB0", "#F0027F", "#BF5B17", "#666666"), 
+              do.return = TRUE)
+ggplotly(p, width = 700, height = 600)
+ggsave(paste0(outputDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
+```
+
+### Color by embryo age
+```{r, message=FALSE}
+## Highlight cells in tSNE plot
+list <- (strsplit( colnames(FGC@data), split = "_"))
+weeks <- sapply(list, function(el){el[2]} )
+FGC@meta.data$embryo.age <- weeks
+p <- TSNEPlot(object = FGC,
+              group.by = "embryo.age",
+              do.return = TRUE)
+ggplotly(p, width = 700, height = 600)
+ggsave(paste0(outputDir, "/tSNEembryoAge.pdf"), width = 10, height = 7)
+```
+
+```{r, message=FALSE}
+str(FGC)
+```
+
+### Calculate the per cluster mean , geometric mean and median
+
+```{r, message=FALSE}
+groupIdentity <- FGC@ident
+normCounts <- FGC@data
+
+## Substiture cell ID with cluster ID
+colnames(normCounts) <- groupIdentity
+
+## Calculate median 
+medianDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, median))
+   colnames(df) <- id
+   return(df)
+ }))
+ write.table(medianDF, paste0(outputDir, "/perClusterMedian.tsv"), sep = "\t", quote = FALSE)
+ 
+## Calculate geometric mean
+gm_mean = function(x, na.rm=TRUE){
+   exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+geomMeanDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, gm_mean))
+   colnames(df) <- id
+   return(df)
+}))
+write.table(geomMeanDF, paste0(outputDir, "/perClusterGeomMean.tsv"), sep = "\t", quote = FALSE)
+ 
+## Calculate Mean
+meanDF <- do.call(cbind, lapply(levels(groupIdentity), function(id){
+   groupCounts <- normCounts[, colnames(normCounts) == id]
+   df <- data.frame( c = apply(groupCounts, 1, mean))
+   colnames(df) <- id
+   return(df)
+}))
+write.table(meanDF, paste0(outputDir, "/perClusterMean.tsv"), sep = "\t", quote = FALSE)
+```
+
+### Draw the dendrogram of the cell clusters. Clustering is based on the per cluster mean gene expression
+
+```{r, message=FALSE}
+distance <- dist(t(meanDF))
+hc <- hclust(distance)
+plot(hc)
+
+rv <- rowVars(meanDF)
+idx <- order(-rv)[1:50]
+e <- as.matrix(meanDF)
+heatmap.2(e[idx, ], trace = "none")
+pdf(file = paste0(outputDir, "/heatmapMeans.pdf"))
+heatmap.2(e[idx, ], trace = "none")
+dev.off()
+```
