@@ -1,7 +1,18 @@
-### Human Spermatogenesis
-* Wang et al
+---
+title: "Seurat - Male germ Cells"
+output:
+  html_document:
+    keep_md: true
+    smart: false
+    theme: united
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+***
 
-```{r}
+
+### Human Spermatogenesis
+* data from Wang et al (2018)
+```{r, message=FALSE}
 ## Libraries
 suppressMessages(library(gridExtra))
 suppressMessages(library(ggplot2))
@@ -11,20 +22,18 @@ suppressMessages(library(plotly))
 suppressMessages(library(dplyr))
 suppressMessages(library(genefilter))
 suppressMessages(library(gplots))
+sessionInfo()
 
 outputDir  = getwd()
-```
 
-```{r}
 metaData <- read.table("/path/to/cellQCfix.csv", 
                        sep = "\t", 
                        header = TRUE, 
                        row.names = "cell",
                        colClasses = c(rep("character", 4), rep("integer", 6)))
-head(metaData)
 ```
 
-```{r}
+```{r, message=FALSE}
 p1 <- ggplot(metaData, aes(x=1, y=Gene_num)) + 
       geom_violin(aes(color = "red"), show.legend = FALSE) + 
       geom_jitter(height=0, width=0.4)
@@ -34,11 +43,9 @@ p2 <- ggplot(metaData, aes(x=1, y=mRNA_mols)) +
 grid.arrange(p1, p2, ncol=2)
 ```
 
-```{r}
+```{r, message=FALSE}
 cellIndex <- metaData$mRNA_mols>10000 & 
-             # metaData$mRNA_mols<1500000 &
              metaData$Gene_num>2000 #&
-             #metaData$Gene_num<10000
 p <- ggplot(metaData, aes(x=mRNA_mols, y=Gene_num)) 
 p <- p + geom_point(data=metaData[!cellIndex,])
 p + geom_point(data=metaData[cellIndex,], colour="red")
@@ -48,8 +55,7 @@ cellIDsExludedQC <- row.names(metaData)[!cellIndex]
 ```
 
 ### Load data
-
-```{r}
+```{r, message=FALSE}
 path = "/path/to/countTables/"
 exprTableFiles = list.files(path=path, pattern="^GSM.*")
 mergedExprTable <- read.delim(paste0(path, exprTableFiles[1]))
@@ -63,57 +69,32 @@ mergedExprTable <- as.data.frame(mergedExprTable)
 rownames(mergedExprTable) <- mergedExprTable$Gene
 ```
 
-```{r}
-head(mergedExprTable)
-```
-
-```{r}
+```{r, message=FALSE}
 sprintf("Number of cells in the metadata: %s", nrow(metaData))
 sprintf("Number of cells that pass the QC: %s", length(cellIDsAfterQC))
 sprintf("Number of cells in the count table (before QC): %s", ncol(mergedExprTable))
 
 ## Keep only the cells of interest
 expreTableAfterQC <- mergedExprTable[,colnames(mergedExprTable) %in% cellIDsAfterQC]
-head(expreTableAfterQC)
 sprintf("Number of cells in the count table (After QC): %s", ncol(expreTableAfterQC))
 ```
 
-### Reverse the TPM calculation (get raw counts table)
-* Use the per cell total transcripts from the metadata table
-* For each cell, multiply the normalized counts by the number of transcripts in that cell. Then divide by 1000000 
-* Check if the resulting table has values that are very close to integers. The smaller non zero must be 1
 
-```{r}
-## Go back to raw counts using the number of Trancripts info from metadata
-head(expreTableAfterQC)
-transcripts <- t(metaData[-c(1:8)])
-#names(trancripts) <- rownames(metaDataFemale )
-transcripts <- transcripts[,colnames(expreTableAfterQC)] 
-transcriptByMil <- transcripts/1000000
-exprTableRaw <- data.frame(mapply(`*`,expreTableAfterQC, as.vector(transcriptByMil)))
-row.names(exprTableRaw) <- rownames(expreTableAfterQC)
-print("Raw count table")
-exprTableRaw
-exprTableRaw <- round(exprTableRaw)
-head(colSums(exprTableRaw))
-```
+### Log (base e) transform the TPM values and Create Seurat Object
+### Note the nornalization step is skipped
+```{r, message=FALSE}
+logTansfTable <- log(expreTableAfterQC+1)
 
-### Create Seurat Object and start with clustering analysis
-
-```{r}
-## Seurat Object, Normalization
+## Seurat Object
 ## average trancriptome size after QC is about 100.000, scale factor to 100000
-male <- CreateSeuratObject(raw.data = exprTableRaw,
+male <- CreateSeuratObject(counts = logTansfTable,
                           min.cells = 5)
-male <- NormalizeData(object = male, 
-                     normalization.method = "LogNormalize", 
-                     scale.factor = 100000)
 ```
 
 ## Dissociation genes on normalized data
+* Check the expression of dissociation genes compared to total expression (for details see 10.1038/nmeth.4437)
 * No need to remove cells, dissociation genes bellow 6%
-
-```{r}
+```{r, message=FALSE}
 genesChrom <- c("Actg1__chr11","Ankrd1__chr19","Arid5a__chr1","Atf3__chr1","Atf4__chr15","Bag3__chr7","Bhlhe40__chr6",
 "Brd2__chr17","Btg1__chr10","Btg2__chr1","Ccnl1__chr3","Ccrn4l__chr3","Cebpb__chr2","Cebpd__chr16",
 "Cebpg__chr7","Csrnp1__chr9","Cxcl1__chr5","Cyr61__chr3","Dcn__chr10","Ddx3x__chrX","Ddx5__chr11",
@@ -140,7 +121,7 @@ genes <- sapply(genesChrom, function(x){
   toupper( strsplit(x, "__")[[1]][1])
 })
 
-Data <- as.data.frame(as.matrix(male@data))
+Data <- as.data.frame(GetAssayData(object = male))
 cat("All genes:\n")
 print(unname(genes))
 #write.table(genes, paste0(outputDir, "/mouseDissocGenes.tsv"), sep ="\t", quote=FALSE, row.names = FALSE)
@@ -152,7 +133,7 @@ cat("Genes from mouse we miss in human:\n")
 unname(genes[!genes %in% row.names(Data)])
 
 ## Calculate the percentage of UMIs maping on dissociation genes
-totalSum <- Matrix::colSums(male@data)
+totalSum <- Matrix::colSums(GetAssayData(object = male))
 selection <- Data[genes, ]
 selection[is.na(selection)] <- 0
 dissociationSums <- colSums(selection)  
@@ -174,101 +155,112 @@ xlab = "Ratio of dissociation-affected genes to total gene count", ylab = "Numbe
 ```
 
 ### Find Variable Genes
-
-```{r}
-male <- FindVariableGenes(object = male, 
+```{r, message=FALSE}
+male <- FindVariableFeatures(object = male, 
                          mean.function = ExpMean, 
                          dispersion.function = LogVMR,
                          x.low.cutoff = 0.0125, 
                          x.high.cutoff = 8, 
                          y.cutoff = 1)
-length(x = male@var.genes)
-topAveExpr = male@hvg.info[male@hvg.info[,1]>3, ]
+length(x = VariableFeatures(male))
+topAveExpr = HVFInfo(male)[HVFInfo(male)[,1]>3, ]
 topAveExprPath = paste0(outputDir, "/topAveExpr.tsv")
 write.table(x = topAveExpr, file = topAveExprPath, sep = "\t")
 ```
 
-```{r}
+```{r, message=FALSE}
 ## Scaling the data
 male <- ScaleData(object = male)
 ```
 
-```{r}
-male <- RunPCA(object = male, pc.genes = male@var.genes, do.print = TRUE, pcs.print = 1:5, 
-    genes.print = 10)
+```{r, message=FALSE}
+male <- RunPCA(object = male, 
+              features = VariableFeatures(male), 
+              do.print = TRUE, 
+              pcs.print = 1:5, 
+              genes.print = 5)
 ```
 
-```{r}
-VizPCA(object = male, pcs.use = 1:2)
+```{r, message=FALSE}
+VizDimLoadings(object = male, 
+               dims = 1:2, 
+               reduction = "pca")
 ggsave(paste0(outputDir, "vizPCA.pdf"), width = 10, height = 7)
-PCAPlot(object = male, dim.1 = 1, dim.2 = 2)
-male <- ProjectPCA(object = male, do.print = FALSE)
-write.table(male@dr$pca@gene.loadings, file = paste0(outputDir, "/geneLoadings.tsv"), sep = "\t", quote = FALSE)
+DimPlot(object = male, reduction = "pca")
+write.table(Loadings(object = male, reduction = "pca"), file = paste0(outputDir, "/geneLoadings.tsv"), sep = "\t", quote = FALSE)
+
 ```
 
-```{r}
-PCHeatmap(object = male, pc.use = 1, cells.use = 500, do.balanced = TRUE, label.columns = FALSE)
+```{r, message=FALSE}
+DimHeatmap(object = male, dims = 1, reduction = "pca", cells = 500, balanced = TRUE)
 ```
 
-```{r}
-PCHeatmap(object = male, pc.use = 1:12, cells.use = 500, do.balanced = TRUE, 
-    label.columns = FALSE, use.full = FALSE)
+```{r, message=FALSE}
+DimHeatmap(object = male, dims = 1:12, cells = 500, reduction = "pca", balanced = TRUE)
 ```
 
-```{r}
-PCElbowPlot(object = male)
+```{r, message=FALSE}
+male <- JackStraw(male, num.replicate = 100)
+male <- ScoreJackStraw(male, dims = 1:20)
+JackStrawPlot(object = male, dims = 1:20)
+```
+
+
+```{r, message=FALSE}
+ElbowPlot(object = male)
 ## Print the percenatge of the standard deviation of each PC as a 
 ## fraction of the total standard deviation od the first 20 PCs
-totalSdev <- sum(male@dr$pca@sdev)
-print(male@dr$pca@sdev/totalSdev)
+totalSdev <- sum(Stdev(object = male, reduction = "pca"))
+print(Stdev(object = male, reduction = "pca")/totalSdev)
 ```
 
-```{r}
+```{r, message=FALSE}
+male <- FindNeighbors(male,
+                     reduction = "pca",
+                     dims = 1:14)
 male <- FindClusters(object = male, 
-                     reduction.type = "pca", 
-                     dims.use = 1:14,
-                     resolution = 1, 
-                     print.output = 0, 
-                     save.SNN = TRUE, 
-                     force.recalc = TRUE)
+                    resolution = 0.6)
 ```
 
-```{r}
-male <- RunTSNE(object = male, dims.use = 1:14, do.fast = TRUE)
-male <- RunUMAP(male, reduction.use = "pca", dims.use = 1:14)
+```{r, message=FALSE}
+male <- RunTSNE(object = male, 
+                dims = 1:14)
+male <- RunUMAP(object = male, 
+                dims = 1:14)
 ```
 
-```{r}
-p <- TSNEPlot(object = male, do.return = TRUE)
+```{r, message=FALSE}
+p <- DimPlot(object = male, 
+             reduction = "tsne")
 ggplotly(p, width = 900, height = 700)
 ggsave(paste0(outputDir, "/tSNE.pdf"), width = 10, height = 7)
-p <- DimPlot(object = male, reduction.use = "umap", do.return = TRUE)
+p <- DimPlot(object = male, 
+             reduction = "umap")
 ggplotly(p, width = 900, height = 700)
 ggsave(paste0(outputDir, "/UMAP.pdf"), width = 10, height = 7)
-p <- PCAPlot(object = male, dim.1 = 1, dim.2 = 2, do.return = TRUE) 
+p <- DimPlot(object = male, 
+             reduction = "pca")
 ggplotly(p, width = 900, height = 700)
 ggsave(paste0(outputDir, "/PCA.pdf"), width = 10, height = 7)
 ```
 
 ### Plot some marker genes from the paper
-
-```{r}
+```{r, message=FALSE}
 markerGenes <- c("GFRA1", "KIT", "STRA8",
                  "SPO11", "OVOL2", "NME8",
                  "TXNDC2", "TNP1", "PRM1")
 FeaturePlot(object = male, 
-            features.plot = markerGenes, 
-            cols.use = c("grey", "blue"), 
-            reduction.use = "tsne")
+            features = markerGenes, 
+            cols = c("grey", "blue"), 
+            reduction = "tsne")
 FeaturePlot(object = male, 
-            features.plot = markerGenes, 
-            cols.use = c("grey", "blue"), 
-            reduction.use = "umap")
+            features = markerGenes, 
+            cols = c("grey", "blue"), 
+            reduction = "umap")
 ```
 
 ### Find DEGs
-
-```{r}
+```{r, message=FALSE, cache=TRUE}
 male.markers <- FindAllMarkers(object = male, only.pos = TRUE, min.pct = 0.25)
 male.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
 
@@ -286,15 +278,229 @@ topMarkersPath = paste0(outputDir, "/topMarkerGenes.tsv")
 write.table(x = topMarkers, file = topMarkersPath, sep = "\t", quote = FALSE, row.names = FALSE)
 ```
 
-```{r}
+```{r, message=FALSE}
 ## Write male object to rds
 rds = paste0(outputDir, "/male.rds")
 saveRDS(male, file =  rds)
 ```
 
-### GO terms enrichment analysis
 
-```{r}
+
+### Color according to paper IDs
+```{r, message=FALSE}
+## Load cell labels
+cellLabels <- read.delim("/exports/sasc/project-248-FGC_RNAseq/data/spermatogenesis/cellClassFix.csv")
+cellL <- unique(cellLabels$class)
+cellL
+names(cellL) <- cellL
+listCellIDs <- lapply(cellL, function(label){
+    as.character(cellLabels[ cellLabels$class ==  label, 2])
+} )
+names(listCellIDs) <- cellL
+```
+
+
+### Paper cluster IDs
+```{r, message=FALSE}
+## Get distinct colors
+color <- c(
+  "dodgerblue2", "#E31A1C", # red
+  "green4",
+  "#6A3D9A", # purple
+  "#FF7F00", # orange
+  "black", "gold1",
+  "skyblue2", "#FB9A99", # lt pink
+  "palegreen2",
+  "#CAB2D6", # lt purple
+  "#FDBF6F", # lt orange
+  "gray70", "khaki2",
+  "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
+  "darkturquoise", "green1", "yellow4", "yellow3",
+  "darkorange4", "brown")
+col <- sample(color, length(listCellIDs))
+p <- DimPlot(object = male,
+             reduction = "tsne",
+             cells.highlight = listCellIDs,
+             cols.highlight = col)
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
+
+p <- DimPlot(object = male,
+             reduction = "umap",
+             cells.highlight = listCellIDs,
+             cols.highlight = col, 
+             do.return = TRUE)
+ggplotly(p, width = 900, height = 700)
+```
+
+### Color according to patient ID
+* Check for batch effect related to patient
+```{r, message=FALSE}
+cellIDs <- names(Idents(object = male))
+patients <-sapply(cellIDs, function(x){
+  metaData[row.names(metaData) == x, ]$batch
+})
+male$patientIDs <- unlist(patients)
+
+p <- DimPlot(object = male,
+             reduction = "tsne",
+             group.by = "patientIDs")
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/tSNEpaperPatientIDs.pdf"), width = 10, height = 7)
+```
+
+
+### Calculate the corrected PC embeddings for cells, removing patient effect
+fastMNN function provides a variant of the mnnCorrect function, modified for speed and more robust performance. In particular:
+
+It performs a multi-sample PCA via multiBatchPCA and subsequently performs all calculations in the PC space. This reduces computational work and provides some denoising - see, comments in ?denoisePCA. As a result, though, the corrected output cannot be interpreted on a gene level and is useful only for cell-level comparisons, e.g., clustering and visualization.
+
+    The correction vector for each cell is directly computed from its k nearest neighbours in the same batch. Specifically, only the k nearest neighbouring cells that also participate in MNN pairs are used. Each MNN-participating neighbour is weighted by distance from the current cell, using a tricube scheme with bandwidth equal to the median distance multiplied by ndist. This ensures that the correction vector only uses information from the closest cells, improving the fidelity of local correction.
+
+    Issues with “kissing” are avoided with a two-step procedure that removes variation along the batch effect vector. First, the average correction vector across all MNN pairs is computed. Cell coordinates are adjusted such that all cells in a single batch have the same position along this vector. The correction vectors are then recalculated with the adjusted coordinates (but the same MNN pairs).
+
+The default setting of cos.norm=TRUE provides some protection against differences in scaling for arbitrary expression matrices. However, if possible, we recommend using the output of multiBatchNorm as input to fastMNN. This will equalize coverage on the count level before the log-transformation, which is a more accurate rescaling than cosine normalization on the log-values.
+
+```{r fastMNN, message=FALSE}
+listObj <- SplitObject(object = male, split.by =  "patientIDs")
+cellEmbeddings <- lapply(listObj, function(x) {
+                         Embeddings(object = x, 
+                                    reduction = "pca")
+})
+names(cellEmbeddings)
+t <- batchelor::fastMNN(cellEmbeddings$N2, cellEmbeddings$N1, cellEmbeddings$OA7, cellEmbeddings$OA5, 
+             cellEmbeddings$OA6, cellEmbeddings$OA3.4, cellEmbeddings$OA2, cellEmbeddings$OA1, 
+             pc.input=TRUE)
+             #compute.variances = TRUE)
+orderedCorrected <- t$corrected[match(colnames(GetAssayData(male)), rownames(t$corrected)), ]
+
+maleMNN <- CreateDimReducObject(embeddings=orderedCorrected, key = "mnn", assay = "RNA")
+male@reductions$mnn <- maleMNN
+```
+
+### Redo the cals using mnn corrected cell embeddings 
+```{r, message=FALSE}
+male <- FindNeighbors(male,
+                     reduction = "mnn",
+                     dims = 1:14)
+male <- FindClusters(object = male, 
+                    resolution = 0.6)
+male <- RunTSNE(object = male,
+                reduction = "mnn",
+                dims = 1:14)
+male <- RunUMAP(object = male, 
+                reduction = "mnn",
+                dims = 1:14)
+```
+
+### Redo the plots
+```{r, message=FALSE}
+p <- DimPlot(object = male, 
+             reduction = "tsne")
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/tSNE_mnn.pdf"), width = 10, height = 7)
+p <- DimPlot(object = male, 
+             reduction = "umap")
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/UMAP_mnn.pdf"), width = 10, height = 7)
+p <- DimPlot(object = male, 
+             reduction = "pca")
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/PCA_mnn.pdf"), width = 10, height = 7)
+```
+
+### Plot some marker genes from the paper
+```{r, message=FALSE}
+markerGenes <- c("GFRA1", "KIT", "STRA8",
+                 "SPO11", "OVOL2", "NME8",
+                 "TXNDC2", "TNP1", "PRM1")
+FeaturePlot(object = male, 
+            features = markerGenes, 
+            cols = c("grey", "blue"), 
+            reduction = "tsne")
+FeaturePlot(object = male, 
+            features = markerGenes, 
+            cols = c("grey", "blue"), 
+            reduction = "umap")
+```
+
+### Find DEGs
+```{r, message=FALSE, cache=TRUE}
+male.markers <- FindAllMarkers(object = male, only.pos = TRUE, min.pct = 0.25)
+male.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
+
+allMarkersPath = paste0(outputDir, "/allMarkerGenes_mnn.tsv")
+write.table(x = male.markers, 
+            file = allMarkersPath, 
+            sep = "\t", 
+            quote = FALSE, 
+            row.names = FALSE)
+
+topMarkers <- male.markers %>% 
+                        group_by(cluster) %>% 
+                        top_n(-50, p_val_adj)
+topMarkersPath = paste0(outputDir, "/topMarkerGenes_mnn.tsv")
+write.table(x = topMarkers, file = topMarkersPath, sep = "\t", quote = FALSE, row.names = FALSE)
+```
+
+### Save object with mnn
+```{r, message=FALSE}
+## Write male object to rds
+rds = paste0(outputDir, "/maleMNN.rds")
+saveRDS(male, file =  rds)
+```
+
+### Paper cluster IDs
+```{r, message=FALSE}
+## Get distinct colors
+color <- c(
+  "dodgerblue2", "#E31A1C", # red
+  "green4",
+  "#6A3D9A", # purple
+  "#FF7F00", # orange
+  "black", "gold1",
+  "skyblue2", "#FB9A99", # lt pink
+  "palegreen2",
+  "#CAB2D6", # lt purple
+  "#FDBF6F", # lt orange
+  "gray70", "khaki2",
+  "maroon", "orchid1", "deeppink1", "blue1", "steelblue4",
+  "darkturquoise", "green1", "yellow4", "yellow3",
+  "darkorange4", "brown")
+col <- sample(color, length(listCellIDs))
+p <- DimPlot(object = male,
+             reduction = "tsne",
+             cells.highlight = listCellIDs,
+             cols.highlight = col)
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/tSNE_mnn_paperClusterIDs.pdf"), width = 10, height = 7)
+p <- DimPlot(object = male,
+             reduction = "umap",
+             cells.highlight = listCellIDs,
+             cols.highlight = col, 
+             do.return = TRUE)
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/UMAP_mnn_paperClusterIDs.pdf"), width = 10, height = 7)
+```
+
+### Color according to patient ID
+* Check for batch effect related to patient
+```{r, message=FALSE}
+cellIDs <- names(Idents(object = male))
+patients <-sapply(cellIDs, function(x){
+  metaData[row.names(metaData) == x, ]$batch
+})
+male$patientIDs <- unlist(patients)
+
+p <- DimPlot(object = male,
+             reduction = "tsne",
+             group.by = "patientIDs")
+ggplotly(p, width = 900, height = 700)
+ggsave(paste0(outputDir, "/tSNE_mnn_paperPatientIDs.pdf"), width = 10, height = 7)
+```
+
+### GO terms enrichment analysis
+```{r, message=FALSE}
 library(topGO)
 library(org.Hs.eg.db)
 ## Code from Davy Cats
@@ -308,12 +514,12 @@ lst <- list()
 # Loop through the clusters.
 for (x in unique(male.markers$cluster)){
   print(x)
-  
+
   # Make a names list of adjusted p-values, with their names being the
   # associated gene.
   genes <- male.markers[male.markers$cluster == x, "p_val_adj"]
   names(genes) <- male.markers[male.markers$cluster == x, "gene"]
-  
+
   # Create a topGOdata object, containing the genes, a function for selecting
   # genes of interest and GO annotations.
   GOdata <- new("topGOdata",
@@ -325,27 +531,27 @@ for (x in unique(male.markers$cluster)){
                 mapping="org.Hs.eg.db",
                 ID="symbol",
                 nodeSize=10)
-  
+
   # Perform Kolmogorov-Smirnov test, using three different GO graph handling
   # algorithms.
   resultKS.classic <- runTest(GOdata, algorithm = "classic", statistic = "ks")
   resultKS <- runTest(GOdata, algorithm = "weight01", statistic = "ks")
   resultKS.elim <- runTest(GOdata, algorithm = "elim", statistic = "ks")
-  
+
   # Make a table from the results, ordered by the p-values of the classic
   # algorithm.
   tbl <- as.data.frame(GenTable(GOdata, ks=resultKS, ks.elim=resultKS.elim,
                                 ks.classic=resultKS.classic,
                                 topNodes=20, orderBy="ks.classic", numChar = 180))
-  
+
   # Add the results table to the results list.
   lst[[x]] <- tbl
-  
+
   ## Write results table to file
   write.table(tbl, file = paste0(GOdir, "cluster_", x, ".tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
 }
 
-## Write all groups GO output to a single table 
+## Write all groups GO output to a single table
 GO <- data.frame()
 for (name in names(lst)) {
   df <- lst[[name]]
@@ -355,58 +561,10 @@ for (name in names(lst)) {
 write.table(GO, file = paste0(outputDir, "/GOAnalysis.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
 ```
 
-### Color according to paper IDs
-
-```{r}
-## Load cell labels
-cellLabels <- read.delim("/path/to/cellClassFix.csv")
-cellL <- unique(cellLabels$class)
-cellL
-names(cellL) <- cellL
-listCellIDs <- lapply(cellL, function(label){
-    as.character(cellLabels[ cellLabels$class ==  label, 2])
-} )
-names(listCellIDs) <- cellL
-```
-
-```{r}
-## Get a vector with discrete colors, as many as there are clusters
-## Note another set of colors results every time this is run
-library(RColorBrewer)
-n <- length(cellL)
-qual_col_pals <- brewer.pal.info[brewer.pal.info$category == 'qual',]
-col_vector = unique(unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals))))
-col <- sample(col_vector, n)
-col
-```
-
-```{r}
-## Get distinct colors
-color <- grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
-col <- sample(color, length(listCellIDs))
-
-p <- TSNEPlot(object = male, 
-              cells.highlight = listCellIDs, 
-              cols.highlight = col, 
-              do.return = TRUE)
-ggplotly(p, width = 900, height = 700)
-#ggsave(paste0(outputDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
-```
-
-```{r}
-p <- DimPlot(object = male,
-             reduction.use = "umap",
-             cells.highlight = listCellIDs,
-             cols.highlight = col, 
-             do.return = TRUE)
-ggplotly(p, width = 900, height = 700)
-```
-
 ### Calculate the per cluster mean , geometric mean and median
-
-```{r}
-groupIdentity <- male@ident
-normCounts <- male@data
+```{r, message=FALSE}
+groupIdentity <- Idents(object = male)
+normCounts <- GetAssayData(object = male)
 
 ## Substiture cell ID with cluster ID
 colnames(normCounts) <- groupIdentity
@@ -445,8 +603,7 @@ write.table(meanDF, paste0(outputDir, "/perClusterMean.tsv"), sep = "\t", quote 
 ### Draw the dendrogram of the cell clusters. 
 * Dendrogram is based on all gene mean expression
 * Heatmap is based on the per cluster mean gene expression of the first 50 most variable means
-
-```{r}
+```{r, message=FALSE}
 distance <- dist(t(meanDF))
 hc <- hclust(distance)
 plot(hc)
@@ -455,7 +612,7 @@ rv <- rowVars(meanDF)
 idx <- order(-rv)[1:50]
 e <- as.matrix(meanDF)
 heatmap.2(e[idx, ], trace = "none")
-pdf(file = paste0(outputDir, "/heatmapMeans.pdf"))
+pdf(file = paste0(outputDir, "/heatmapMean.pdf"), width = 10, height = 8)
 heatmap.2(e[idx, ], trace = "none")
 dev.off()
 ```
