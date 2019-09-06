@@ -1,29 +1,30 @@
 ### Smart Seq wrokflow
-Data from L. Li et all. A workflow to explore this dataset
+* Data from L. Li et all. A workflow to explore this dataset
+* Only late and meiotic cells
+* Use Seurat v3
 
 ```{r}
 ## Libraries
-library(Seurat)
-library(monocle)
-library(ggplot2)
-library(gridExtra)
-library(dplyr)
-library(plotly)
-library(genefilter)
-library(gplots)
-
+suppressMessages(library(Seurat))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+suppressMessages(library(dplyr))
+suppressMessages(library(plotly))
+suppressMessages(library(genefilter))
+suppressMessages(library(gplots))
+sessionInfo()
 outputDir  = getwd()
 
 ```
 
 ### Late and Meiotic cells
-* Redo seurat workflow with Late and meiotic
-
+* Redo seurat workflow with late and meiotic cells
+* FGC.rds was created in workflow seurat.Rmd
 ```{r}
-FGC <- readRDS("FGC.rds") 
-lateMeiot <- SubsetData(object = FGC, ident.use = c(2, 4)) ## clusters 2 and 4 are late and miotic cells
+FGC <- readRDS("/path/toFGC.rds") 
+lateMeiot <- subset(x = FGC, idents = c(3, 6, 7)) ## clusters 3, 6 and 7 are late and meiotic cells
 lateMeiot
-lateDir <- paste0(outputDir, "/late")
+lateDir <- outputDir
 ```
 
 ```{r}
@@ -33,14 +34,14 @@ lateMeiot <- NormalizeData(object = lateMeiot,
 ```
 
 ```{r}
-lateMeiot <- FindVariableGenes(object = lateMeiot, 
-                         mean.function = ExpMean, 
-                         dispersion.function = LogVMR,
-                         x.low.cutoff = 0.0125, 
-                         x.high.cutoff = 8, 
-                         y.cutoff = 1)
-length(x = lateMeiot@var.genes)
-topAveExpr = lateMeiot@hvg.info[lateMeiot@hvg.info[,1]>3, ]
+lateMeiot <- FindVariableFeatures(object = lateMeiot, 
+                                  mean.function = ExpMean, 
+                                  dispersion.function = LogVMR,
+                                  x.low.cutoff = 0.0125, 
+                                  x.high.cutoff = 8, 
+                                  y.cutoff = 1)
+length(x = VariableFeatures(lateMeiot))
+topAveExpr <- HVFInfo(lateMeiot)[HVFInfo(lateMeiot)[, 1] > 3, ]
 topAveExprPath = paste0(lateDir, "/topAveExpr.tsv")
 write.table(x = topAveExpr, file = topAveExprPath, sep = "\t")
 ```
@@ -52,81 +53,73 @@ lateMeiot <- ScaleData(object = lateMeiot)
 
 ```{r}
 lateMeiot <- RunPCA(object = lateMeiot, 
-                    pc.genes = lateMeiot@var.genes, 
+                    features = VariableFeatures(lateMeiot), 
                     do.print = TRUE, 
                     pcs.print = 1:5, 
                     genes.print = 10)
 ```
 
 ```{r}
-VizPCA(object = lateMeiot, pcs.use = 1:2)
-ggsave(paste0(lateDir, "vizPCA.pdf"), width = 10, height = 7)
-PCAPlot(object = lateMeiot, dim.1 = 1, dim.2 = 2)
-lateMeiot <- ProjectPCA(object = lateMeiot, do.print = FALSE)
-write.table(lateMeiot@dr$pca@gene.loadings, 
+VizDimLoadings(object = lateMeiot, dims = 1:2, reduction = "pca")
+ggsave(paste0(lateDir, "/vizPCA.pdf"), width = 10, height = 7)
+DimPlot(object = lateMeiot,
+        reduction = "pca" )
+write.table(Loadings(object = lateMeiot, reduction = "pca"), 
             file = paste0(lateDir, "/geneLoadings.tsv"), 
             sep = "\t", 
             quote = FALSE)
 ```
 
 ```{r}
-PCHeatmap(object = lateMeiot, 
-          pc.use = 1, 
-          cells.use = 100, 
-          do.balanced = TRUE, 
-          label.columns = FALSE)
+DimHeatmap(object = lateMeiot, 
+           dims = 1, 
+           cells = 200, 
+           balanced = TRUE,
+           reduction = "pca")
 ```
 
 ```{r}
-PCHeatmap(object = lateMeiot, 
-          pc.use = 1:12, 
-          cells.use = 100, 
-          do.balanced = TRUE, 
-          label.columns = FALSE, 
-          use.full = FALSE)
+DimHeatmap(object = lateMeiot, 
+           dims = 1:12, 
+           cells = 200, 
+           balanced = TRUE, 
+           reduction = "pca")
 ```
 
 ```{r}
-PCElbowPlot(object = lateMeiot)
+ElbowPlot(object = lateMeiot)
 ## Print the percenatge of the standard deviation of each PC as a 
 ## fraction of the total standard deviation od the first 20 PCs
-totalSdev <- sum(lateMeiot@dr$pca@sdev)
-print(lateMeiot@dr$pca@sdev/totalSdev)
+totalSdev <- sum(Stdev(object = lateMeiot, reduction = "pca"))
+print(Stdev(object = lateMeiot, reduction = "pca")/totalSdev)
 ```
 
 ```{r}
-lateMeiot <- FindClusters(object = lateMeiot, 
-                          reduction.type = "pca", 
-                          dims.use = 1:10, 
-                          resolution = 0.6, 
-                          print.output = 0, 
-                          save.SNN = TRUE, 
-                          force.recalc = TRUE)
+lateMeiot <- FindNeighbors(object = lateMeiot, 
+                           reduction = "pca", 
+                           dims = 1:10)
+lateMeiot <- FindClusters(object = lateMeiot,
+                          resolution = 0.8)
 ```
 
 ```{r}
 lateMeiot <- RunTSNE(object = lateMeiot, 
-                     dims.use = 1:10, 
-                     do.fast = TRUE)
+                     dims = 1:10)
 lateMeiot <- RunUMAP(lateMeiot, 
-                     dims.use = 1:10,
-                     reduction.use = "pca")
+                     dims = 1:10)
 ```
 
 ```{r}
-p <- TSNEPlot(object = lateMeiot, 
-              do.return = TRUE)
+p <- DimPlot(object = lateMeiot, 
+             reduction = "tsne")
 ggplotly(p, width = 700, height = 500)
 ggsave(paste0(lateDir, "/tSNE.pdf"), width = 10, height = 7)
 p <- DimPlot(lateMeiot, 
-             reduction.use = "umap", 
-             do.return = TRUE)
+             reduction = "umap")
 ggplotly(p, width = 700, height = 500)
 ggsave(paste0(lateDir, "/UMAP.pdf"), width = 10, height = 7)
-p <- PCAPlot(object = lateMeiot, 
-             dim.1 = 1, 
-             dim.2 = 2, 
-             do.return = TRUE) 
+p <- DimPlot(object = lateMeiot, 
+             reduction = "pca") 
 ggplotly(p, width = 700, height = 500)
 ggsave(paste0(lateDir, "/PCA.pdf"), width = 10, height = 7)
 ```
@@ -149,14 +142,20 @@ saveRDS(lateMeiot, file =  lateMeiotRds)
 ```
 
 ```{r}
-markerGenes <- c("POU5F1", "PDPN", "NANOS3",
-                 "DDX4", "DAZL", "STRA8",
-                 "SPO11", "SYCP3", "TEX19",
-                 "ZP3", "KIT")
+markerGenes <- c("SYCP1", "SYCP2", 
+                 "SYCE1", "SYCP3",
+                 "SYCE2", "SYCE3")
 FeaturePlot(object = lateMeiot, 
-            features.plot = markerGenes, 
-            cols.use = c("grey", "blue"),
-            reduction.use = "tsne")
+            features = markerGenes, 
+            cols = c("grey", "blue"),
+            reduction = "tsne")
+```
+
+## Violin plots SML1 H2AZ
+```{r, message=FALSE}
+VlnPlot(object = lateMeiot, 
+        features = c("SCML1", "H2AFX"),
+        reduction = "tsne")
 ```
 
 ```{r}
@@ -226,7 +225,6 @@ write.table(GO, file = paste0(lateDir, "/GOAnalysis.tsv"), sep = "\t", row.names
 ## Load cell labels
 cellLabels <- read.delim("/path/to/mmc2_finalClusters.csv")
 cellL <- unique(cellLabels$Name_cl)
-cellL
 cellLabelsFemale <- cellL[grep(cellL, pattern = "Female")] 
 names(cellLabelsFemale) <- cellLabelsFemale
 listCellIDs <- lapply(cellLabelsFemale, function(label){
@@ -236,11 +234,12 @@ names(listCellIDs) <- cellLabelsFemale
 ```
 
 ```{r}
-p <- TSNEPlot(object = lateMeiot, 
-              cells.highlight = listCellIDs, 
-              colors.use = c("black"), 
-              cols.highlight = c("#7FC97F", "#BEAED4", "#FDC086", "#FFFF99",
-                                 "#386CB0", "#F0027F", "#BF5B17", "#666666"), 
+p <- DimPlot(object = lateMeiot, 
+             reduction = "tsne",
+             cells.highlight = listCellIDs,
+             colors.use = c("black"),
+             cols.highlight = c("#7FC97F", "#BEAED4", "#FDC086", "#FFFF99",
+                                "#386CB0", "#F0027F", "#BF5B17", "#666666"),
               do.return = TRUE)
 ggplotly(p, width = 700, height = 600)
 ggsave(paste0(lateDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
@@ -250,19 +249,19 @@ ggsave(paste0(lateDir, "/tSNEpaperClusterIDs.pdf"), width = 10, height = 7)
 
 ```{r}
 ## Highlight cells in tSNE plot
-list <- (strsplit( colnames(lateMeiot@data), split = "_"))
+list <- (strsplit( colnames(GetAssayData(lateMeiot)), split = "_"))
 weeks <- sapply(list, function(el){el[2]} )
-lateMeiot@meta.data$embryo.age <- weeks
-p <- TSNEPlot(object = lateMeiot,
-              group.by = "embryo.age",
-              do.return = TRUE)
+lateMeiot$embryo.age <- weeks
+p <- DimPlot(object = lateMeiot,
+             reduction = "tsne",
+             group.by = "embryo.age")
 ggplotly(p, width = 700, height = 600)
 ggsave(paste0(outputDir, "/tSNEembryoAge.pdf"), width = 10, height = 7)
 ```
 
 ```{r}
-groupIdentity <- lateMeiot@ident
-normCounts <- lateMeiot@data
+groupIdentity <- Idents(lateMeiot)
+normCounts <- GetAssayData(lateMeiot)
 
 ## Substiture cell ID with cluster ID
 colnames(normCounts) <- groupIdentity
