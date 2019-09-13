@@ -1,0 +1,106 @@
+---
+title: "Trajectory with Diffusion Maps"
+output:
+  html_document:
+    keep_md: true
+    smart: false
+    theme: united
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+***
+
+
+### Load libraries 
+```{r, message=FALSE}
+suppressPackageStartupMessages({
+  library(Seurat)
+  library(destiny)
+  library(ggplot2)
+  library(plotly)
+})
+sessionInfo()
+outputDir  = getwd()
+```
+
+### Diffusion Maps
+* Load data (created in workflow seurat.Rmd) and select the desirable clusters
+* Calculate the PCs 
+* Calculate the Diffusion Embeddings 
+* Calcualte the Diffusion Pseudotime
+* Plot expression of specific genes on the DM
+```{r, message=FALSE}
+FGC <- readRDS("/path/to/FGC.rds") 
+earlyLate <- subset(x = FGC, idents = c(1, 2, 3, 4, 6, 7)) ## clusters 1, 2, 3, 4, 6, 7 are early and late meiotic cells
+earlyLate <- NormalizeData(object = earlyLate, 
+                     normalization.method = "LogNormalize", 
+                     scale.factor = 1000000)
+earlyLate <- FindVariableFeatures(object = earlyLate, 
+                                  mean.function = ExpMean, 
+                                  dispersion.function = LogVMR,
+                                  x.low.cutoff = 0.0125, 
+                                  x.high.cutoff = 8, 
+                                  y.cutoff = 1)
+length(x = VariableFeatures(earlyLate))
+earlyLate <- ScaleData(object = earlyLate)
+
+earlyLate <- RunPCA(object = earlyLate, 
+                    features = VariableFeatures(earlyLate), 
+                    do.print = TRUE, 
+                    ndims.print = 1:10, 
+                    nfeatures.print = 15)
+```
+
+* Print the percenatge of the standard deviation of each PC as a fraction of the total standard deviation of the first 50 PCs
+```{r, message=FALSE}
+totalSdev <- sum(earlyLate[["pca"]]@stdev)
+print(earlyLate[["pca"]]@stdev/totalSdev)
+```
+
+```{r, message=FALSE}
+## Get embryo age (weeks) out of the cell ID
+cellIDs <- colnames(x = earlyLate)
+l <- (strsplit( cellIDs, split = "_"))
+embryoAge <- sapply(l, function(el){el[2]} )
+
+emb.df <- as.data.frame(Embeddings(earlyLate))
+DM <- DiffusionMap(emb.df[,1:5]) ## We found that using the first 5 PCs as input for the DiffusionMap function gives the optimal results
+row.names(DM@eigenvectors) <- row.names(emb.df)
+earlyLate@reductions$dm <- CreateDimReducObject(embeddings=DM@eigenvectors, key = "DM", assay = "RNA")
+
+#####
+p <- DimPlot(object = earlyLate,
+             reduction = "pca")
+ggplotly(p, width = 800, height = 600)
+ggsave(paste0(outputDir, "/PCA.pdf"), width = 10, height = 7)
+
+#####
+p <- DimPlot(object = earlyLate,
+             reduction = "dm")
+ggplotly(p, width = 800, height = 600)
+ggsave(paste0(outputDir, "/DiffusionMapClusters.pdf"), width = 10, height = 7)
+
+#####
+dpt <- DPT(DM)
+plot(dpt, col_by ='DPT1')
+ggsave(paste0(outputDir, "/DiffusionPseudoTime.pdf"), width = 10, height = 7)
+
+genes <- c("PC_1", "PC_2", "PC_3", "PC_4", "PC_5")
+for (gene in genes) {
+  p <- FeaturePlot(object = earlyLate, reduction="dm", features = gene)
+  p <- p + xlim(-0.04, 0.08) + ylim(-0.09, 0.19)
+  print(p)
+  ggsave(paste0(outputDir, "/", gene, "_expr_DM.pdf"), width = 10, height = 7)
+}
+
+genes <- c("NANOS3", "STRA8", "TNFAIP8L3", 
+           "SPO11", "RBPJL", "TEX19", 
+           "ZP3", "PLK2", "OOSP2",
+           "MEIKIN")
+for (gene in genes) {
+  p <- FeaturePlot(object = earlyLate, reduction="dm", features = gene, cols =c("#FD9A6AFF", "#000004FF"))
+  p <- p + xlim(-0.04, 0.08) + ylim(-0.09, 0.19)
+  print(p)
+  ggsave(paste0(outputDir, "/", gene, "_expr_DM.pdf"), width = 10, height = 7)
+}
+```
+
