@@ -3,8 +3,8 @@
 # Deduplicate the individual cell files usung the UMI information
 # Author: I. Moustakas
 
-OUTPUT_PATH = "/exports/sasc/project-248-FGC_RNAseq/analysis/SNP_calling_masked_no_read_QC"
-INPUT_PATH = "/exports/sasc/project-248-FGC_RNAseq/analysis/STARsolo_masked_no_read_QC"
+OUTPUT_PATH = "/path/to/analysis/SNP_calling_masked_no_read_QC"
+INPUT_PATH = "/epath/to/analysis/STARsolo_masked_no_read_QC"
 
 #SRAs, = glob_wildcards(INPUT_PATH + "/{sra}_pass_1.fastq.gz")
 
@@ -25,7 +25,7 @@ rule samtools:
         mem = "2000",
         time = "1:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         samtools sort -@ 2 -o {output} {input} && \
@@ -42,7 +42,7 @@ rule demultiplex:
         mem = "4000",
         time = "2:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         python splitOnCellBarcode.py \
@@ -64,7 +64,7 @@ checkpoint barcode2CellId:
         mem = "1000",
         time = "1:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         python barcode2CellId.py \
@@ -85,7 +85,7 @@ checkpoint add_readgroup:
         mem = "3000",
         time = "3:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         for f in `ls {params.input_bam_path}/*bam`;
@@ -113,7 +113,7 @@ checkpoint sort:
         mem = "3000",
         time = "3:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         for f in `ls {params.input_bam_path}/*bam`;
@@ -133,7 +133,7 @@ checkpoint flagstats:
         mem = "3000",
         time = "1:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         for f in `ls {params.input_bam_path}/*bam`;
@@ -157,7 +157,7 @@ checkpoint umitools:
         mem = "7000",
         time = "6:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         mkdir -p {params.log_path}
@@ -185,7 +185,7 @@ checkpoint flagstats_dedupl:
         mem = "3000",
         time = "1:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         for f in `ls {params.input_bam_path}/*bam`;
@@ -205,7 +205,7 @@ rule bcftools:
         mem = "4000",
         time = "48:0:0"
     conda:
-        "/exports/sasc/project-248-FGC_RNAseq/src/SNP_calling/samtools_snpCall.yml"
+        "/path/to/src/SNP_calling/samtools_snpCall.yml"
     shell:
         """
         bcftools mpileup -Ou \
