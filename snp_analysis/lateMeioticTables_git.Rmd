@@ -1,0 +1,265 @@
+---
+title: "Process the VCF files from Li dataset chr X"
+output:
+  html_document:
+  keep_md: true
+smart: false
+theme: united
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+***
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  cache.lazy = FALSE,
+  tidy = TRUE
+)
+```
+
+# Chr X
+```{r}
+suppressMessages(library(VariantAnnotation))
+suppressMessages(library(dplyr))
+suppressMessages(library(stringr))
+suppressMessages(library(biomaRt))
+sessionInfo()
+output_dir <- getwd()
+```
+
+## Set thresholds here
+* To be used furhter in the script
+* All variables in one place, easier to change
+```{r} 
+coverage = ref_thres = alt_thres = 5
+cells_per_locus_thres = 5
+min_genotype_qual = 0
+```
+
+# Ref Alt counts
+## Load the one vcf file from the late meiotic subset
+* Output a table with reference and alternative counts
+```{r}
+vcf_file = "/path/to/lateMeioticCells_all_chr_masked_intersect_imprinted.vcf"
+svp <- ScanVcfParam( geno=c("GT", "DP", "AD"))
+vcf <- readVcf(vcf_file, "hg38", svp)
+num_cells <- dim(vcf)[2]
+
+## Filter out indels
+vcf <- vcf[!info(vcf)$INDEL, ]
+
+## Filter out the loci with more than one alt allele
+t <- sapply(rowRanges(vcf)$ALT, function(x) length(x))  
+length(which(t>1))
+vcf <- vcf[t==1,]
+
+## Filter on Genotype Qual
+genotype_qual <- rowRanges(vcf)$QUAL>min_genotype_qual
+vcf <- vcf[genotype_qual, ]
+
+## Get genotype, depth and allele depth out of the vcf object
+GT <- geno(vcf)$GT
+DP <- geno(vcf)$DP
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+## AD is the depth of all alleles e.g. Ref 8 reads, alt 10 reads, then total depth (DP) 18
+## AD is comma separated and has at least 2 fields (reference and alternative) in this file, since we did not include reference calls
+AD <- geno(vcf)$AD
+
+## Get the sample name out of the alignment file name 
+filePaths <- colnames(GT)
+filePathsCore <- gsub(".dedup.bam$", "", filePaths)
+filePathsSplit <- strsplit(filePathsCore, "/")
+cellId <- sapply(filePathsSplit, function(x) {
+  objLen <- length(x)
+  return(x[objLen])
+})
+
+## Rename columns
+colnames(GT) <- cellId
+colnames(DP) <- cellId
+colnames(AD) <- cellId
+
+## Filtering
+## Keep loci with at least 5 cells with REf + ALT, 
+## while at least 5 bases support each of the REF or ALT
+ref_counts <- apply(AD, 1:2, function(x){unlist(x)[1]})
+alt_counts <- apply(AD, 1:2, function(x){unlist(x)[2]})
+
+ref_over_thres <-ref_counts>=ref_thres
+alt_over_thres <-alt_counts>=alt_thres 
+ref_and_alt_over_thres <- ref_over_thres&alt_over_thres
+loci_to_keep <- rowSums(ref_and_alt_over_thres)>=cells_per_locus_thres
+vcf_filter <- vcf[loci_to_keep, ]
+
+## apply filter on matrices
+GT_filter <- GT[loci_to_keep, ]
+DP_filter <- DP[loci_to_keep, ]
+AD_filter <- AD[loci_to_keep, ]
+allele_depth_table <- apply(AD_filter, 1:2, function(x) {paste(unlist(x), collapse=" | ")})
+allele_depth_table <- as.data.frame(allele_depth_table) 
+
+## decompose rownames and create a column for Chromosome, Coordinate, Reference and Alternative
+rownnms = rownames(AD_filter)
+chrom <- sapply(strsplit(rownnms, split=":", fixed=TRUE), function(x){x[1]})
+rest <- sapply(strsplit(rownnms, split=":", fixed=TRUE), function(x){x[2]})
+coord <- sapply(strsplit(rest, split="_", fixed=TRUE), function(x){x[1]})
+rest <- sapply(strsplit(rest, split="_", fixed=TRUE), function(x){x[2]})
+ref_alt <-  sapply(strsplit(rest, split="_", fixed=TRUE), function(x){x[1]})
+ref <- sapply(strsplit(ref_alt, split="/", fixed=TRUE), function(x){x[1]})
+alt <- sapply(strsplit(ref_alt, split="/", fixed=TRUE), function(x){x[2]})
+
+## Add columns to the allele depth table
+allele_depth_table$chrom <- chrom
+allele_depth_table$coord <- coord
+allele_depth_table$ref <- ref
+allele_depth_table$alt <- alt
+
+## number of cells per locus that have sufficient coverage 
+high_cover <- DP_filter>=coverage
+allele_depth_table$cells_per_locus <- rowSums(high_cover)
+
+## number of cells per locus with sufficient coverage at REF only
+ref_counts <- apply(AD_filter, 1:2, function(x){unlist(x)[1]})
+alt_counts <- apply(AD_filter, 1:2, function(x){unlist(x)[2]})
+ref_only <- ref_counts>=ref_thres&alt_counts<alt_thres
+allele_depth_table$cells_per_locus_ref_only <- rowSums(ref_only)
+
+alt_counts <- apply(AD_filter, 1:2, function(x){unlist(x)[2]})
+alt_only <- ref_counts<ref_thres&alt_counts>=alt_thres
+allele_depth_table$cells_per_locus_alt_only <- rowSums(alt_only)
+
+both_ref_alt <- ref_counts>=ref_thres&alt_counts>=alt_thres
+allele_depth_table$cells_per_locus_both_ref_alt <- rowSums(both_ref_alt)
+n_columns = ncol(allele_depth_table)
+n_inform_columns = n_columns - num_cells
+
+## Put columns in convienent order
+allele_depth_table_reord <- allele_depth_table[ ,c((num_cells+1):n_columns, 1:num_cells)]
+```
+
+## Per embryo tables
+```{r}
+## Create DF 
+per_embryo_het_calls <- data.frame(chrom=chrom,
+                                   coord=coord,
+                                   ref=ref,
+                                   alt=alt)
+
+## number of cells per locus that have sufficient coverage (>=10)
+high_cover <- DP_filter>=coverage*2
+per_embryo_het_calls$cells_per_locus <- rowSums(high_cover)
+
+## number of cells per locus with sufficient coverage at REF and ALT
+ref_counts <- apply(AD_filter, 1:2, function(x){unlist(x)[1]})
+alt_counts <- apply(AD_filter, 1:2, function(x){unlist(x)[2]})
+both_ref_alt <- ref_counts>=ref_thres&alt_counts>=alt_thres
+per_embryo_het_calls$cells_per_locus_both_ref_alt <- rowSums(both_ref_alt)
+
+## Split the matrix according to the embryo and sum the cells that are both REF and ALT mer embryo
+colnms <- colnames(both_ref_alt)
+embryo_list <- sapply(strsplit(colnms, split="_sc", fixed=TRUE), function(x) {x[1]})
+
+## Function to count cells per locus and per embryo that fulfil a criterion
+## Accepts a boolean matrix
+cells_per_locus <- function(counts_matrix, embryo_list, metric_text){
+  ## Transpose matrix, row is then an embryo, col a locus
+  counts_matrix_transp <- as.data.frame(t(counts_matrix))
+
+  ## Aggregate sums on embryo
+  ## sum function sums up the number of cells that are TRUE (for whatever tested for)
+  count_cells_per_locus <- aggregate(counts_matrix_transp, 
+                                      by = list(embryo_list),
+                                      FUN = sum)
+  rownames(count_cells_per_locus) <- paste0(metric_text, count_cells_per_locus$Group.1)
+  count_cells_per_locus <- count_cells_per_locus[,-1]
+  return(count_cells_per_locus)
+}
+
+hetero_cells_per_locus<- cells_per_locus(both_ref_alt, 
+                                         embryo_list,
+                                         "both_ref_alt_")
+per_embryo_het_calls <- cbind(per_embryo_het_calls, t(hetero_cells_per_locus))
+
+covered_per_locus<- cells_per_locus(DP_filter>=10, 
+                                         embryo_list,
+                                         "cells_covered_")
+per_embryo_het_calls <- cbind(per_embryo_het_calls, t(covered_per_locus))
+
+ratio_het_cover <- t(hetero_cells_per_locus)/t(covered_per_locus)
+rename_cols <- gsub(colnames(ratio_het_cover), 
+                    pattern = "both_ref_alt", 
+                    replacement = "ratio_het_cover" )
+colnames(ratio_het_cover) <- rename_cols
+per_embryo_het_calls <- cbind(per_embryo_het_calls, ratio_het_cover)
+```
+
+
+## Add the cluster info to the cell table
+```{r}
+cell_2_cluster <- read.delim("/path/to/cellID2Cluster.tsv")
+cell_2_cluster$cellID_cl <- paste(cell_2_cluster$cellID, cell_2_cluster$clusterID, sep="_CL_")
+colnms <- colnames(allele_depth_table_reord)
+colnms_cellids <- colnms[n_inform_columns:length(colnms)]
+df_cellids <- as.data.frame(colnms_cellids)
+colnames(df_cellids) <- "cellID"
+cell_renamed <- merge(df_cellids, cell_2_cluster, by = "cellID", sort=FALSE)
+new_col_names <- c(colnms[1:n_inform_columns], cell_renamed$cellID_cl)
+colnames(allele_depth_table_reord) <- new_col_names
+new_cell_order <- c(1:n_inform_columns, order(cell_2_cluster$clusterID)+n_inform_columns)
+allele_depth_table_reordered <- allele_depth_table_reord[,new_cell_order]
+```
+
+
+  
+## Annotate with biomaRt
+* Following this guide https://bioconductor.org/packages/release/bioc/vignettes/biomaRt/inst/doc/biomaRt.html#selecting-a-biomart-database-and-dataset
+```{r}
+listMarts()
+ensembl <- useMart("ensembl")
+datasets <- listDatasets(ensembl)
+head(datasets)
+datasets[datasets$dataset=="hsapiens_gene_ensembl",]
+ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+# ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+filters = listFilters(ensembl)
+filters[1:20, ]
+attributes = listAttributes(ensembl)
+attributes[1:20,]
+
+snp_table <- allele_depth_table_reordered
+
+## This is not used for now, as it requeres work to match gene coordinates with SNPs locus
+hgnc_x <- getBM(attributes= c("hgnc_symbol", "start_position", "end_position"), 
+              filters = c("chromosome_name"),
+              values="X", mart=ensembl)
+
+chrom =  unique(snp_table$chrom)
+hgncs <- apply(snp_table[,c("chrom","coord")], 1, function(x){
+               hgnc <- getBM(attributes= "hgnc_symbol",
+               filters = c("chromosome_name", "start", "end"),
+               values=list(x[1], x[2], x[2]), mart=ensembl)
+               return(hgnc)
+              })
+
+gene_names <- sapply(hgncs, function(x){ 
+  entry <- unlist(x)
+  if (length(entry)==0 ) return("NA")
+  else paste0(entry, collapse = ",")
+}) 
+snp_table$hgnc <- gene_names 
+filename <- sprintf("allele_depth_per_cell_cov%s_chr%s_masked_imprinted.tsv", coverage, paste(chrom, collapse="_"))
+write.table(snp_table, 
+            file = filename,
+            row.names=FALSE, 
+            quote = FALSE, 
+            sep = "\t")
+
+## Add the gene info in the file
+per_embryo_het_calls$hgnc <- gene_names
+filename <- sprintf("per_embryo_het_calls_cov%s_chr%s_masked_imprinted.tsv", coverage, paste(chrom, collapse="_"))
+write.table(per_embryo_het_calls, 
+            file = filename,
+            row.names=FALSE, 
+            quote = FALSE, 
+            sep = "\t")
+```
+
