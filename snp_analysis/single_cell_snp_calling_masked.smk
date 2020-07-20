@@ -92,7 +92,7 @@ checkpoint add_readgroup:
         do
             basename=$(echo $f | sed -e 's/\.bam$//' | sed -e 's/.*\///g')
             java -Xmx4G \
-            -jar /exports/sasc/ioannis/gatk/gatk-4.1.7.0/gatk-package-4.1.7.0-local.jar \
+            -jar /path/to/gatk/gatk-4.1.7.0/gatk-package-4.1.7.0-local.jar \
             AddOrReplaceReadGroups \
             -I $f \
             -O {params.output_bam_path}$basename.bam \
