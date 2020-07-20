@@ -212,7 +212,7 @@ rule bcftools:
         --max-depth 1000 \
         --regions "X" \
         --annotate FORMAT/AD,FORMAT/DP \
-        -f /exports/sasc/ioannis/cellRangerPipelines/refdata-cellranger-GRCh38-3.0.0/fasta/genome.fa \
+        -f /path/to/refdata-cellranger-GRCh38-3.0.0/fasta/genome.fa \
         `ls {params.input_dir}/*.dedup.bam` |\
         bcftools call -m \
         -Ou \
