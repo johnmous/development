@@ -1,0 +1,67 @@
+name: samtools_snpCall
+channels:
+  - anaconda
+  - bioconda
+  - conda-forge
+  - defaults
+  - r
+dependencies:
+  - _libgcc_mutex=0.1=conda_forge
+  - _openmp_mutex=4.5=1_llvm
+  - bcftools=1.9=h68d8f2e_9
+  - bzip2=1.0.8=h516909a_2
+  - ca-certificates=2020.1.1=0
+  - certifi=2019.11.28=py36h9f0ad1d_1
+  - click=7.1.1=py_0
+  - curl=7.68.0=hf8cf82a_0
+  - cycler=0.10.0=py_2
+  - freetype=2.10.1=he06d7ca_0
+  - future=0.18.2=py36h9f0ad1d_1
+  - gsl=2.5=h294904e_1
+  - htslib=1.9=h4da6232_3
+  - icu=64.2=he1b5a44_1
+  - kiwisolver=1.1.0=py36hdb11119_1
+  - krb5=1.16.4=h2fd8d38_0
+  - ld_impl_linux-64=2.34
+  - libblas=3.8.0=16_openblas
+  - libcblas=3.8.0=16_openblas
+  - libcurl=7.68.0=hda55be3_0
+  - libdeflate=1.5=h516909a_0
+  - libedit=3.1.20170329=hf8c457e_1001
+  - libffi=3.2.1=he1b5a44_1007
+  - libgcc-ng=9.2.0=h24d8f2e_2
+  - libgfortran-ng=7.3.0=hdf63c60_5
+  - liblapack=3.8.0=16_openblas
+  - libopenblas=0.3.9=h5ec1e0e_0
+  - libpng=1.6.37=hed695b0_1
+  - libssh2=1.8.2=h22169c7_2
+  - libstdcxx-ng=9.2.0=hdf63c60_2
+  - llvm-openmp=9.0.1=hc9558a2_2
+  - matplotlib-base=3.2.1=py36hb8e4980_0
+  - ncurses=6.1=hf484d3e_1002
+  - numpy=1.18.1=py36h95a1406_0
+  - openssl=1.1.1
+  - pandas=1.0.3=py36h830a2c2_0
+  - perl=5.26.2=h516909a_1006
+  - pip=20.0.2=py_2
+  - pyparsing=2.4.6=py_0
+  - pysam=0.15.4=py36hbcae180_0
+  - python=3.6.10=h9d8adfe_1009_cpython
+  - python-dateutil=2.8.1=py_0
+  - python_abi=3.6=1_cp36m
+  - pytz=2019.3=py_0
+  - readline=8.0=hf8c457e_0
+  - regex=2016.06.24=py36_1
+  - samtools=1.9=h10a08f8_12
+  - scipy=1.4.1=py36h921218d_0
+  - setuptools=46.0.0=py36h9f0ad1d_2
+  - six=1.14.0=py_1
+  - sqlite=3.30.1=hcee41ef_0
+  - tk=8.6.10=hed695b0_0
+  - tornado=6.0.4=py36h8c4c3a4_1
+  - umi_tools=1.0.1=py36h516909a_1
+  - wheel=0.34.2=py_1
+  - xz=5.2.4=h14c3975_1001
+  - zlib=1.2.11=h516909a_1006
+prefix: /exports/sasc/ioannis/miniconda3/envs/samtools_snpCall
+
