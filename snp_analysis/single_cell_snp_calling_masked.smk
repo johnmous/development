@@ -36,7 +36,7 @@ rule demultiplex:
     input: INPUT_PATH + "/{sra}/Aligned.sortedByCoord.out.sorted.bam"
     output: OUTPUT_PATH + "/demultiplexed/{sra}/demultiplexing_done.txt"
     params:
-        barcodes = "/exports/sasc/project-248-FGC_RNAseq/src/HECA/scRNA-seq_pipeline_hg38/barcode_96_8bp_noCells.csv",
+        barcodes = "/path/to/src/HECA/scRNA-seq_pipeline_hg38/barcode_96_8bp_noCells.csv",
         output_dir = OUTPUT_PATH + "/demultiplexed/{sra}/",
         sthreads = 2,
         mem = "4000",
@@ -56,8 +56,8 @@ checkpoint barcode2CellId:
     output: directory(OUTPUT_PATH + "/demultiplexed_cell_ids/{sra}/")
     params:
         srrid="{sra}",
-        srr2sexweekfile="/exports/sasc/project-248-FGC_RNAseq/data/LiLiData/SRRid2sexWeek.csv",
-        barcd2cellidfile="/exports/sasc/project-248-FGC_RNAseq/src/HECA/scRNA-seq_pipeline_hg38/barcode_96_8bp.txt",
+        srr2sexweekfile="/path/to//data/LiLiData/SRRid2sexWeek.csv",
+        barcd2cellidfile="/path/to/src/HECA/scRNA-seq_pipeline_hg38/barcode_96_8bp.txt",
         path2barcodes=OUTPUT_PATH + "/demultiplexed/{sra}/",
         path2cellids=OUTPUT_PATH + "/demultiplexed_cell_ids/{sra}/",
         sthreads = 1,
