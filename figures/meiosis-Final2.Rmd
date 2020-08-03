@@ -1,5 +1,5 @@
 ---
-title: "meiosis paper-V3 code"
+title: "meiosis-Final4"
 output: html_document
 ---
 
@@ -7,18 +7,24 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r cars}
 summary(cars)
 ```
 
 
+
 ```{r, echo=TRUE, error=TRUE}
 
 .libPaths()
-.libPaths( c( "C:/Users/fxy19/Documents/R/win-library/3.6" , .libPaths() ) )
+.libPaths( c( "\\\\vf-d4-home/d4home$/xfan/MyDocs/R/win-library/4.0" , .libPaths() ) )
 
-setwd("E:/xueying Fan/meiosis-dec/R running/final-June")
+setwd("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/meiosis-dec/R running/final-June")
 outputDir = getwd()
 
 suppressMessages(library(ggplot2))
@@ -36,11 +42,13 @@ suppressMessages(library(stringr))
 
 sessionInfo()
 
-FGC <- readRDS("E:/xueying Fan/dataset R running/FGC.rds")
-lateMeiot <- readRDS("E:/xueying Fan/dataset R running/lateMeiot.rds")
-male <- readRDS("E:/xueying Fan/dataset R running/maleMNN.rds")
+FGC <- readRDS("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/dataset R running/FGC.rds")
+lateMeiot <- readRDS("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/dataset R running/lateMeiot.rds")
+male <- readRDS("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/dataset R running/maleMNN.rds")
 
 ```
+
+
 
 ##Fig.S1A, S1B
 ```{r, echo=TRUE, error=TRUE}
@@ -132,13 +140,13 @@ VlnPlot(lateMeiot,features = c("DYDC1", "FBXO47", "VCX2","VCX3A","VCX","VCX3B"))
 ##Fig.1E
 ```{r, echo=TRUE, error=TRUE}
 #################Fig.1E####################
-marker<- read_excel("E:/xueying Fan/meiosis-dec/new/new figures-2/new file from Susana/lateMeiotAllGenesPadj0.05Pct.1_0.6.xls")
+marker<- read_excel("Table S1. lateMeiotAllGenesPadj0.05Pct.1_0.6.xls")
 
-disease<- read_excel("E:/xueying Fan/meiosis-dec/R running/R running knit/Disease.xlsx")
+disease<- read_excel("Disease.xlsx")
 
 
 
-disease.gene <- disease[which(disease$Gene %in% marker$gene),]
+disease.gene <- disease[which(disease$Gene %in% marker$`gene name`),]
 
 disease.gene <- disease.gene[-which(disease.gene$Disease=="Down Syndrome"),]
 
@@ -207,8 +215,8 @@ FeaturePlot(male, features = c("VIM","PDGFRA","CD4","AMH","DMRT1","SCML1","TDRG1
 ##Fig.3A
 ```{r, echo=TRUE, error=TRUE}
 ################Fig.3A###################
-female.marker<- read_excel("E:/xueying Fan/meiosis-dec/new/new figure-3/lateMeiotAllGenesPadj0.05Pct.1_0.6.xls")
-male.marker<- read_excel("E:/xueying Fan/meiosis-dec/new/new figure-3/maleAllGenes_mnn_Padj0.05Pct.1_0.6.xls")
+female.marker<- read_excel("Table S1. lateMeiotAllGenesPadj0.05Pct.1_0.6.xls")
+male.marker<- read_excel("Table S2. maleAllGenes_mnn_Padj0.05Pct.1_0.6.xls")
 
 female.L<- female.marker[female.marker$cluster== "1",]
 female.Z<- female.marker[female.marker$cluster== "4",]
@@ -222,24 +230,24 @@ male.lP <- male.marker[male.marker$cluster== "5",]
 male.D <- male.marker[male.marker$cluster== "6",]
 
 
-L.common <- female.L[which(female.L$'gene' %in% male.L$'gene'),]
-female.L.specific <- female.L[-which(female.L$'gene' %in% male.L$'gene'),]
-male.L.specific <- male.L[-which(male.L$'gene' %in% female.L$'gene'),]
+L.common <- female.L[which(female.L$`gene name` %in% male.L$`gene name`),]
+female.L.specific <- female.L[-which(female.L$`gene name` %in% male.L$`gene name`),]
+male.L.specific <- male.L[-which(male.L$`gene name` %in% female.L$`gene name`),]
 
 
-Z.common <- female.Z[which((female.Z$'gene' %in% male.Z$'gene')&(female.Z$'gene' %in% male.eP$'gene')),]
-female.Z.specific <- female.Z[-which((female.Z$'gene' %in% male.Z$'gene')|(female.Z$'gene' %in% male.eP$'gene')),]
-male.Z.specific <- male.Z[-which((male.Z$'gene' %in% female.Z$'gene')|(male.Z$'gene' %in% male.eP$'gene')),]
-m.ZeP.specific <- male.eP[-which((male.eP$'gene' %in% female.Z$'gene')|(male.eP$'gene' %in% male.Z$'gene')),]
+Z.common <- female.Z[which((female.Z$`gene name` %in% male.Z$`gene name`)&(female.Z$`gene name` %in% male.eP$`gene name`)),]
+female.Z.specific <- female.Z[-which((female.Z$`gene name` %in% male.Z$`gene name`)|(female.Z$`gene name` %in% male.eP$`gene name`)),]
+male.Z.specific <- male.Z[-which((male.Z$`gene name` %in% female.Z$`gene name`)|(male.Z$`gene name` %in% male.eP$`gene name`)),]
+m.ZeP.specific <- male.eP[-which((male.eP$`gene name` %in% female.Z$`gene name`)|(male.eP$`gene name` %in% male.Z$`gene name`)),]
 
-P.common <- female.P[which((female.P$'gene' %in% male.lP$'gene')&(female.P$'gene' %in% male.eP$'gene')),]
-m.PeP.specific <- male.eP[-which((male.eP$'gene' %in% female.P$'gene')|(male.eP$'gene' %in% male.lP$'gene')),]
-female.P.specific <- female.P[-which((female.P$'gene' %in% male.lP$'gene')|(female.P$'gene' %in% male.eP$'gene')),]
-male.lP.specific <- male.lP[-which((male.lP$'gene' %in% female.P$'gene')|(male.lP$'gene' %in% male.eP$'gene')),]
+P.common <- female.P[which((female.P$`gene name` %in% male.lP$`gene name`)&(female.P$`gene name` %in% male.eP$`gene name`)),]
+m.PeP.specific <- male.eP[-which((male.eP$`gene name` %in% female.P$`gene name`)|(male.eP$`gene name` %in% male.lP$`gene name`)),]
+female.P.specific <- female.P[-which((female.P$`gene name` %in% male.lP$`gene name`)|(female.P$`gene name` %in% male.eP$`gene name`)),]
+male.lP.specific <- male.lP[-which((male.lP$`gene name` %in% female.P$`gene name`)|(male.lP$`gene name` %in% male.eP$`gene name`)),]
 
-D.common <- female.D[which((female.D$'gene' %in% male.D$'gene')),]
-female.D.specific <- female.D[-which((female.D$'gene' %in% male.D$'gene')),]
-male.D.specific <- male.D[-which((male.D$'gene' %in% female.D$'gene')),]
+D.common <- female.D[which((female.D$`gene name` %in% male.D$`gene name`)),]
+female.D.specific <- female.D[-which((female.D$`gene name` %in% male.D$`gene name`)),]
+male.D.specific <- male.D[-which((male.D$`gene name` %in% female.D$`gene name`)),]
 
 nrow(L.common)
 nrow(female.L.specific)
@@ -400,7 +408,7 @@ saveRDS(maleFemaleMeiosisEqualized, file = "femalemale.rds")
 ##Fig.3B, 3C,S3A
 ```{r, echo=TRUE, error=TRUE}
 
-maleFemaleMeiosisEqualized <- readRDS("E:/xueying Fan/meiosis-dec/R running/R running-april/femalemale.rds")
+maleFemaleMeiosisEqualized <- readRDS("femalemale.rds")
 
 ################Fig.3B###################
 DimPlot(object = maleFemaleMeiosisEqualized, 
@@ -421,32 +429,32 @@ FeaturePlot(maleFemaleMeiosisEqualized, features = c("GAGE2A","PAGE1","STAT4","T
 ```{r, echo=TRUE, error=TRUE}
 ################Fig.S3B###################
 
-female.L.LOC <- female.L[grep("LOC", female.L$gene),] 
-female.L.LINC <- female.L[grep("LINC", female.L$gene),] 
+female.L.LOC <- female.L[grep("LOC", female.L$`gene name`),] 
+female.L.LINC <- female.L[grep("LINC", female.L$`gene name`),] 
 
-female.Z.LOC <- female.Z[grep("LOC", female.Z$gene),] 
-female.Z.LINC <- female.Z[grep("LINC", female.Z$gene),] 
+female.Z.LOC <- female.Z[grep("LOC", female.Z$`gene name`),] 
+female.Z.LINC <- female.Z[grep("LINC", female.Z$`gene name`),] 
 
-female.P.LOC <- female.P[grep("LOC", female.P$gene),] 
-female.P.LINC <- female.P[grep("LINC", female.P$gene),]
+female.P.LOC <- female.P[grep("LOC", female.P$`gene name`),] 
+female.P.LINC <- female.P[grep("LINC", female.P$`gene name`),]
 
-female.D.LOC <- female.D[grep("LOC", female.D$gene),] 
-female.D.LINC <- female.D[grep("LINC", female.D$gene),]
+female.D.LOC <- female.D[grep("LOC", female.D$`gene name`),] 
+female.D.LINC <- female.D[grep("LINC", female.D$`gene name`),]
 
-male.L.LOC <- male.L[grep("LOC", male.L$gene),] 
-male.L.LINC <- male.L[grep("LINC", male.L$gene),]
+male.L.LOC <- male.L[grep("LOC", male.L$`gene name`),] 
+male.L.LINC <- male.L[grep("LINC", male.L$`gene name`),]
 
-male.Z.LOC <- male.Z[grep("LOC", male.Z$gene),] 
-male.Z.LINC <- male.Z[grep("LINC", male.Z$gene),]
+male.Z.LOC <- male.Z[grep("LOC", male.Z$`gene name`),] 
+male.Z.LINC <- male.Z[grep("LINC", male.Z$`gene name`),]
 
-male.eP.LOC <- male.eP[grep("LOC", male.eP$gene),] 
-male.eP.LINC <- male.eP[grep("LINC", male.eP$gene),]
+male.eP.LOC <- male.eP[grep("LOC", male.eP$`gene name`),] 
+male.eP.LINC <- male.eP[grep("LINC", male.eP$`gene name`),]
 
-male.lP.LOC <- male.lP[grep("LOC", male.lP$gene),] 
-male.lP.LINC <- male.lP[grep("LINC", male.lP$gene),]
+male.lP.LOC <- male.lP[grep("LOC", male.lP$`gene name`),] 
+male.lP.LINC <- male.lP[grep("LINC", male.lP$`gene name`),]
 
-male.D.LOC <- male.D[grep("LOC", male.D$gene),] 
-male.D.LINC <- male.D[grep("LINC", male.D$gene),]
+male.D.LOC <- male.D[grep("LOC", male.D$`gene name`),] 
+male.D.LINC <- male.D[grep("LINC", male.D$`gene name`),]
 
 #######################################################################
 F.L <- c(6,6,615)
@@ -496,13 +504,12 @@ nrow(DEGs)
 
 library(EnhancedVolcano)
 EnhancedVolcano(DEGs,
-    lab = rownames(DEGs),
+    lab = NA,
     x = 'avg_logFC',
     y = 'p_val_adj',
     pCutoff = 0.001,
     FCcutoff = 1.5,
-    xlim = c(-5, 8),
-    pLabellingCutoff = NULL)
+    xlim = c(-5, 8))
 
 DEGs.filtered1 <- DEGs[(DEGs$p_val_adj<0.001 & DEGs$avg_logFC>1.5),]
 nrow(DEGs.filtered1) 
@@ -705,7 +712,7 @@ kpPlotMarkers(kp, sel.data, labels = sel.data$'hgnc_symbol', text.orientation = 
 ##Fig.S4A
 ```{r, echo=TRUE, error=TRUE}
 ##import x-linked escape gene list
-Xesc<- read_excel("E:/xueying Fan/meiosis-dec/R running/R running knit/Eseacpees with reference.new.xlsx")
+Xesc<- read_excel("Eseacpees with reference.new.xlsx")
 Xesclist <- Xesc$`Gene Name`
 
 xgenes.female <- xgenes.femalemale[(xgenes.femalemale$p_val_adj<0.001 & xgenes.femalemale$avg_logFC< -1.5),]
@@ -789,12 +796,28 @@ pheatmap(mat = meanDF, annotation_row = anno, show_rownames = F, scale = "none",
 
 ```
 
-
-
 ##Fig.4C
 ```{r, echo=TRUE, error=TRUE}
 
-VlnPlot(lateMeiot,features = c("XIST","YY1","SPEN","EZH2","H2AFY","TSIX"))
+VlnPlot(lateMeiot,features ="XIST", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(lateMeiot,features ="EZH2", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(lateMeiot,features ="SPEN", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(lateMeiot,features ="XACT", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(lateMeiot,features ="TSIX", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(lateMeiot,features ="H2AFY", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+
+```
+
+
+##Fig.S4B
+```{r, echo=TRUE, error=TRUE}
+
+VlnPlot(FGC,features ="XIST", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(FGC,features ="EZH2", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(FGC,features ="SPEN", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(FGC,features ="XACT", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(FGC,features ="TSIX", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
+VlnPlot(FGC,features ="H2AFY", pt.size = 0)+stat_summary(fun=mean, geom="point", size=2, color="red")+ylim(0,8)
 
 ```
 
@@ -803,8 +826,8 @@ VlnPlot(lateMeiot,features = c("XIST","YY1","SPEN","EZH2","H2AFY","TSIX"))
 ## SNPs filtering and table generation
 ```{r, echo=TRUE, error=TRUE}
 
-chr7.cov5<- read_excel("E:/xueying Fan/meiosis-dec/new/SNPs/05-05-2020/05-05-2020/allele_depth_table_filter_cells_depth_reordered_gene_names_chr7_masked.xls")
-chrx.cov5<- read_excel("E:/xueying Fan/meiosis-dec/new/SNPs/05-05-2020/05-05-2020/allele_depth_table_filter_cells_depth_reordered_gene_names_chrX_masked.xls")
+chr7.cov5<- read_excel("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/meiosis-dec/new/SNPs/05-05-2020/05-05-2020/allele_depth_table_filter_cells_depth_reordered_gene_names_chr7_masked.xls")
+chrx.cov5<- read_excel("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/meiosis-dec/new/SNPs/05-05-2020/05-05-2020/allele_depth_table_filter_cells_depth_reordered_gene_names_chrX_masked.xls")
 
 ########################################split chx.cov5###########################################
 chrx.cov5.2<- chrx.cov5[,10:236]
@@ -991,8 +1014,8 @@ write.table(meta.embryo2, file = paste0(outputDir, "/chr7.cov5-30cells.meta.tsv"
 
 
 ##################################organize the final table################################################
-chrx.cov5 <- read.delim("E:/xueying Fan/meiosis-dec/R running/final-June/chrx.cov5-30cells.tsv")
-chr7.cov5 <- read.delim("E:/xueying Fan/meiosis-dec/R running/final-June/chr7.cov5-30cells.tsv")
+chrx.cov5 <- read.delim("chrx.cov5-30cells.tsv")
+chr7.cov5 <- read.delim("chr7.cov5-30cells.tsv")
 
 chr7.cov5 <- data.frame(chr7.cov5[,1:2],chr7.cov5$hgnc, chr7.cov5[,3:235])
 colnames(chr7.cov5)[3] <- "hgnc"
@@ -1003,8 +1026,8 @@ chrx.cov5<- as.matrix(chrx.cov5)
 tableSNP <-as.data.frame(rbind(chrx.cov5,chr7.cov5)) 
 
 ##
-embryox<- read_excel("E:/xueying Fan/meiosis-dec/new/SNPs/05-05-2020/per_embryo_het_calls_cov5_chrX_masked.xls")
-embryo7<- read_excel("E:/xueying Fan/meiosis-dec/new/SNPs/05-05-2020/per_embryo_het_calls_cov5_chr7_masked.xls")
+embryox<- read_excel("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/meiosis-dec/new/SNPs/05-05-2020/per_embryo_het_calls_cov5_chrX_masked.xls")
+embryo7<- read_excel("P:/PI/PI_Chuva_de_Sousa_Lopes/susana/Fan xueying/Projects/project-vanessa-meiosis/meiosis-dec/new/SNPs/05-05-2020/per_embryo_het_calls_cov5_chr7_masked.xls")
 
 embryox <- data.frame(embryox[,1:2],embryox[,40],embryox[,3:39])
 embryo7 <- data.frame(embryo7[,1:2],embryo7[,40],embryo7[,3:39])
@@ -1029,7 +1052,7 @@ write.table(all, file = paste0(outputDir, "/finalmerged_SNPs.cov5-30cells.tsv"),
 ```
 
 
-##Fig.S4B
+##Fig.S4C
 ```{r, echo=TRUE, error=TRUE}
 ##################################################
 chrx.cov5.meta <- read.table("chrx.cov5-30cells.meta.tsv", sep = '\t', header = TRUE)
@@ -1244,7 +1267,7 @@ ggarrange(gg1,gg2,gg3,gg4,gg5, ncol = 2,nrow = 3)
 ```
 
 
-##Fig.S4C chrX-esc scatter plot
+##Fig.S4D chrX-esc scatter plot
 ```{r, echo=TRUE, error=TRUE}
 ref.xesc <- chrx.ref[which(chrx.ref$hgnc %in% Xesclist),]
 alt.xesc <- chrx.alt[which(chrx.alt$hgnc %in% Xesclist),]
@@ -1308,7 +1331,7 @@ ggarrange(gg1,gg2,gg3,gg4,gg5, ncol = 2,nrow = 3)
 ```
 
 
-##Fig.S4E
+##Fig.4E
 ```{r, echo=TRUE, error=TRUE}
 #############chromosome 7#######################
 chr7.ref <- chr7.cov5.2[,grep(".1$", colnames(chr7.cov5.2))]
@@ -1453,7 +1476,7 @@ ggplot(snp.pct, aes(x=cluster, y=percentage,fill=group)) +
 ```
 
 
-##Fig.S4F
+##Fig.4F
 ```{r, echo=TRUE, error=TRUE}
 snp.xpro$type <- "monoallelic"
 snp.xpro[which(snp.xpro$percentage<0.6),8]<-"biallelic"
@@ -1647,10 +1670,12 @@ DimPlot(object = maleFemaleMeiosisEqualized,
 
 
 
+
+
 ##Fig.4G
 ```{r, echo=TRUE, error=TRUE}
 ##import table
-ubi<- read_excel("C:/Users/fxy19/Desktop/mmc4.xlsx")
+ubi<- read_excel("mmc4.xlsx")
 
 ################################################calculate femalemale dataset################################
 genes <- GetAssayData(object = maleFemaleMeiosisEqualized, slot = "data")
@@ -1699,7 +1724,6 @@ nrow(genes.Xpro)
 
 ## calculate A-linked genes  mean expression per cell
 genes.A.t<- data.frame(t(as.matrix(genes.A)))
-
 meanA<- apply(genes.A.t, 1, FUN = mean)
 genes.A.t$mean <- meanA
 genes.A.t<-as.matrix(genes.A.t)
@@ -1707,7 +1731,6 @@ meanA<-as.matrix(genes.A.t[,-(1:7793)])
 
 ## calculate X-esc genes  mean expression per cell
 genes.Xesc.t<- data.frame(t(as.matrix(genes.Xesc)))
-
 meanXesc<- apply(genes.Xesc.t, 1, FUN = mean)
 genes.Xesc.t$mean <- meanXesc
 genes.Xesc.t<-as.matrix(genes.Xesc.t)
@@ -1715,7 +1738,6 @@ meanXesc<-as.matrix(genes.Xesc.t[,-(1:32)])
 
 ## calculate X-sub genes  mean expression per cell
 genes.Xpro.t<- data.frame(t(as.matrix(genes.Xpro)))
-
 meanXpro<- apply(genes.Xpro.t, 1, FUN = mean)
 genes.Xpro.t$mean <- meanXpro
 genes.Xpro.t<-as.matrix(genes.Xpro.t)
@@ -1723,7 +1745,6 @@ meanXpro<-as.matrix(genes.Xpro.t[,-(1:219)])
 
 ## calculate chr7 genes  mean expression per cell
 genes.chr7.t<- data.frame(t(as.matrix(genes.7)))
-
 meanchr7<- apply(genes.chr7.t, 1, FUN = mean)
 genes.chr7.t$mean <- meanchr7
 genes.chr7.t<-as.matrix(genes.chr7.t)
@@ -1753,11 +1774,89 @@ ggplot(df, aes(x = groupIdentity, y = value, fill=variable)) +
   geom_boxplot(outlier.size=0.2)+ theme_bw()+
   scale_fill_brewer(palette="Set2")+ylim(0,2)
 
+######################################################
+y1 <- df[which(df$variable=="Xproratio"),]
+###check normality
+shapiro.test(y1$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y1)
+pairwise.wilcox.test(y1$value, y1$groupIdentity,
+                     p.adjust.method = "BH")
+
+y2 <- df[which(df$variable=="Xescratio"),]
+###check normality
+shapiro.test(y2$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y2)
+pairwise.wilcox.test(y2$value, y2$groupIdentity,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$variable=="chr7ratio"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y3)
+pairwise.wilcox.test(y3$value, y3$groupIdentity,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_L"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_Z"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_P"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_D"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_L"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_Z"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_eP"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+
 ```
 
 
 
-##Fig.S4D 
+##Fig.S4E 
 ```{r, echo=TRUE, error=TRUE}
 genes <- GetAssayData(object = maleFemaleMeiosisEqualized, slot = "data")
 dim(genes)
@@ -1800,7 +1899,6 @@ nrow(genes.Xpro)
 
 ## calculate A-linked genes  mean expression per cell
 genes.A.t<- data.frame(t(as.matrix(genes.A)))
-
 meanA<- apply(genes.A.t, 1, FUN = mean)
 genes.A.t$mean <- meanA
 genes.A.t<-as.matrix(genes.A.t)
@@ -1808,7 +1906,6 @@ meanA<-as.matrix(genes.A.t[,-(1:20179)])
 
 ## calculate X-esc genes  mean expression per cell
 genes.Xesc.t<- data.frame(t(as.matrix(genes.Xesc)))
-
 meanXesc<- apply(genes.Xesc.t, 1, FUN = mean)
 genes.Xesc.t$mean <- meanXesc
 genes.Xesc.t<-as.matrix(genes.Xesc.t)
@@ -1816,7 +1913,6 @@ meanXesc<-as.matrix(genes.Xesc.t[,-(1:92)])
 
 ## calculate X-sub genes  mean expression per cell
 genes.Xpro.t<- data.frame(t(as.matrix(genes.Xpro)))
-
 meanXpro<- apply(genes.Xpro.t, 1, FUN = mean)
 genes.Xpro.t$mean <- meanXpro
 genes.Xpro.t<-as.matrix(genes.Xpro.t)
@@ -1824,7 +1920,6 @@ meanXpro<-as.matrix(genes.Xpro.t[,-(1:697)])
 
 ## calculate chr7 genes  mean expression per cell
 genes.chr7.t<- data.frame(t(as.matrix(genes.7)))
-
 meanchr7<- apply(genes.chr7.t, 1, FUN = mean)
 genes.chr7.t$mean <- meanchr7
 genes.chr7.t<-as.matrix(genes.chr7.t)
@@ -1854,6 +1949,86 @@ ggplot(df, aes(x = groupIdentity, y = value, fill=variable)) +
   geom_boxplot(outlier.size=0.2)+ theme_bw()+
   scale_fill_brewer(palette="Set2")+ylim(0,2)
 
+
+######################################################
+y1 <- df[which(df$variable=="Xproratio"),]
+###check normality
+shapiro.test(y1$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y1)
+pairwise.wilcox.test(y1$value, y1$groupIdentity,
+                     p.adjust.method = "BH")
+
+y2 <- df[which(df$variable=="Xescratio"),]
+###check normality
+shapiro.test(y2$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y2)
+pairwise.wilcox.test(y2$value, y2$groupIdentity,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$variable=="chr7ratio"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ groupIdentity, data =y3)
+pairwise.wilcox.test(y3$value, y3$groupIdentity,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_L"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_Z"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_P"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="F_D"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_L"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_Z"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+kruskal.test(value ~ variable, data =y3)
+pairwise.wilcox.test(y3$value, y3$variable,
+                     p.adjust.method = "BH")
+
+y3 <- df[which(df$groupIdentity=="M_eP"),]
+###check normality
+shapiro.test(y3$'value') ##p-value<0.05, data is not normal distribution
+###Kruskal Wallis test
+
+
 ```
 
 
@@ -1865,4 +2040,7 @@ L <- c("RNF8","TOPBP1","MDC1","FAAP24","ATR","H2AFX","BRCA1","HDAC11","HDAC9","H
 DotPlot(maleFemaleMeiosisEqualized, features = L , cols = c("blue", "red"), dot.scale = 6)+ RotatedAxis()
 
 ```
+
+
+
 
